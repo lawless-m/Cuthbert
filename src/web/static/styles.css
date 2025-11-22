@@ -137,6 +137,86 @@ button:active {
     margin: 5px 0;
 }
 
+#discovered-nodes {
+    background: #2a2a2a;
+    padding: 15px;
+    border-radius: 4px;
+    margin-bottom: 15px;
+}
+
+#discovered-nodes-list {
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+#discovered-nodes-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+#discovered-nodes-list::-webkit-scrollbar-track {
+    background: #1a1a1a;
+}
+
+#discovered-nodes-list::-webkit-scrollbar-thumb {
+    background: #444;
+    border-radius: 3px;
+}
+
+.node-item {
+    background: #1a1a1a;
+    padding: 10px;
+    margin: 8px 0;
+    border-radius: 4px;
+    border-left: 3px solid #3b82f6;
+    font-size: 12px;
+}
+
+.node-item.online {
+    border-left-color: #10b981;
+}
+
+.node-item.offline {
+    border-left-color: #6b7280;
+}
+
+.node-id {
+    font-family: monospace;
+    color: #3b82f6;
+    font-size: 11px;
+    margin-bottom: 4px;
+}
+
+.node-hostname {
+    font-weight: 600;
+    color: #e0e0e0;
+    margin-bottom: 4px;
+}
+
+.node-status {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 10px;
+    text-transform: uppercase;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.node-status.online {
+    background: #065f46;
+    color: #d1fae5;
+}
+
+.node-status.offline {
+    background: #374151;
+    color: #9ca3af;
+}
+
+.node-last-seen {
+    color: #a0a0a0;
+    font-size: 11px;
+}
+
 #legend {
     background: #2a2a2a;
     padding: 15px;
