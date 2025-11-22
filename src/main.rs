@@ -8,7 +8,7 @@ use std::sync::Arc;
 use tracing_subscriber;
 
 use api::rest::AppState;
-use discovery::{PeerRegistry, broadcast::DiscoveryService, gossip::GossipService};
+use discovery::{PeerRegistry, broadcast::DiscoveryService, gossip::GossipService, ping::PingService};
 
 #[tokio::main]
 async fn main() {
@@ -52,6 +52,10 @@ async fn main() {
     // Start gossip service for cleanup
     let gossip = GossipService::new(peer_registry.clone());
     gossip.start_cleanup_task().await;
+
+    // Start ping service for latency monitoring
+    let ping_service = PingService::new(peer_registry.clone(), state.clone());
+    ping_service.start_ping_task().await;
 
     // Build application router
     let app = api::rest::create_api_router(state.clone())

@@ -26,6 +26,7 @@ class RouteVisualizer {
         this.wsMaxReconnectAttempts = 5;
         this.discoveredNodes = new Map();
         this.localNodeId = null;
+        this.latencyData = new Map(); // nodeId -> latency_ms
 
         this.init();
         this.setupEventListeners();
@@ -202,7 +203,74 @@ class RouteVisualizer {
 
     handleLatencyUpdate(connections) {
         console.log('Latency update:', connections);
-        // Update edge colors based on latency
+
+        connections.forEach(conn => {
+            // Store latency data
+            this.latencyData.set(conn.to, conn.latency_ms);
+
+            // Update the edge for this connection
+            const edgeIndex = this.edges.findIndex(e =>
+                e.userData.type === 'mesh-edge' && e.userData.nodeId === conn.to
+            );
+
+            if (edgeIndex !== -1) {
+                const edge = this.edges[edgeIndex];
+                const oldEdge = edge;
+
+                // Get positions from current edge
+                const positions = edge.geometry.attributes.position.array;
+                const start = new THREE.Vector3(positions[0], positions[1], positions[2]);
+                const end = new THREE.Vector3(positions[3], positions[4], positions[5]);
+
+                // Remove old edge
+                this.scene.remove(edge);
+
+                // Create new edge with latency-based color
+                const color = this.getLatencyColor(conn.latency_ms);
+                const newEdge = this.createEdge(start, end, color, false);
+                newEdge.userData = oldEdge.userData;
+
+                // Add latency label
+                this.addEdgeLabel(newEdge, `${conn.latency_ms}ms`, `latency-${conn.to}`);
+
+                this.edges[edgeIndex] = newEdge;
+                this.scene.add(newEdge);
+            }
+        });
+    }
+
+    getLatencyColor(latencyMs) {
+        // Color code based on latency thresholds
+        // < 20ms: green, 20-50ms: yellow-green, 50-100ms: yellow, 100-200ms: orange, > 200ms: red
+        if (latencyMs < 20) return 0x10b981; // green
+        if (latencyMs < 50) return 0x84cc16; // yellow-green
+        if (latencyMs < 100) return 0xfbbf24; // yellow
+        if (latencyMs < 200) return 0xf97316; // orange
+        return 0xef4444; // red
+    }
+
+    addEdgeLabel(edge, text, labelId) {
+        // Get midpoint of edge
+        const positions = edge.geometry.attributes.position.array;
+        const midX = (positions[0] + positions[3]) / 2;
+        const midY = (positions[1] + positions[4]) / 2;
+        const midZ = (positions[2] + positions[5]) / 2;
+
+        const labelDiv = document.createElement('div');
+        labelDiv.className = 'node-label';
+        labelDiv.textContent = text;
+        labelDiv.style.color = '#fbbf24';
+        labelDiv.style.fontSize = '10px';
+        labelDiv.style.fontFamily = 'monospace';
+        labelDiv.style.background = 'rgba(0, 0, 0, 0.7)';
+        labelDiv.style.padding = '2px 4px';
+        labelDiv.style.borderRadius = '3px';
+
+        const label = new THREE.CSS2DObject(labelDiv);
+        label.position.set(midX, midY, midZ);
+        edge.add(label);
+
+        this.labels.set(labelId, label);
     }
 
     handleTraceRouteResult(result) {
@@ -412,16 +480,26 @@ class RouteVisualizer {
             // Create edge from local node to discovered node
             const localNode = this.nodes.get('local');
             if (localNode) {
+                // Use latency-based color if available
+                const latency = this.latencyData.get(node.id);
+                const edgeColor = latency !== undefined ? this.getLatencyColor(latency) : color;
+
                 const edge = this.createEdge(
                     localNode.position,
                     mesh.position,
-                    color,
+                    edgeColor,
                     false
                 );
                 edge.userData = {
                     type: 'mesh-edge',
                     nodeId: node.id
                 };
+
+                // Add latency label if we have latency data
+                if (latency !== undefined) {
+                    this.addEdgeLabel(edge, `${latency}ms`, `latency-${node.id}`);
+                }
+
                 this.edges.push(edge);
                 this.scene.add(edge);
             }
