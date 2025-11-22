@@ -1,4 +1,4 @@
-// Network Route Visualizer - Enhanced Three.js Frontend (Phase 2)
+// Network Route Visualizer - Enhanced Three.js Frontend (Phase 3)
 
 class RouteVisualizer {
     constructor() {
@@ -20,9 +20,18 @@ class RouteVisualizer {
         this.frameCount = 0;
         this.lastTime = performance.now();
 
+        // WebSocket and discovery
+        this.ws = null;
+        this.wsReconnectAttempts = 0;
+        this.wsMaxReconnectAttempts = 5;
+        this.discoveredNodes = new Map();
+        this.localNodeId = null;
+
         this.init();
         this.setupEventListeners();
+        this.connectWebSocket();
         this.loadRoutingTable();
+        this.loadDiscoveredNodes();
     }
 
     init() {
@@ -40,7 +49,7 @@ class RouteVisualizer {
             0.1,
             1000
         );
-        this.camera.position.set(0, 15, 25);
+        this.camera.position.set(0, 20, 35);
 
         // Create WebGL renderer
         this.renderer = new THREE.WebGLRenderer({
@@ -84,7 +93,7 @@ class RouteVisualizer {
         this.controls.enableDamping = true;
         this.controls.dampingFactor = 0.05;
         this.controls.minDistance = 5;
-        this.controls.maxDistance = 50;
+        this.controls.maxDistance = 80;
 
         // Handle window resize
         window.addEventListener('resize', () => this.onWindowResize());
@@ -92,6 +101,169 @@ class RouteVisualizer {
         // Start animation loop
         this.animate();
         this.updateFPS();
+    }
+
+    connectWebSocket() {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.host}/ws`;
+
+        try {
+            this.ws = new WebSocket(wsUrl);
+
+            this.ws.onopen = () => {
+                console.log('WebSocket connected');
+                this.wsReconnectAttempts = 0;
+                this.showSuccess('Connected to server');
+
+                // Subscribe to all updates
+                this.wsSend({
+                    type: 'subscribe',
+                    topics: ['nodes', 'latency', 'routes']
+                });
+            };
+
+            this.ws.onmessage = (event) => {
+                try {
+                    const message = JSON.parse(event.data);
+                    this.handleWebSocketMessage(message);
+                } catch (e) {
+                    console.error('Failed to parse WebSocket message:', e);
+                }
+            };
+
+            this.ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+            };
+
+            this.ws.onclose = () => {
+                console.log('WebSocket disconnected');
+                this.showError('Disconnected from server');
+
+                // Attempt to reconnect
+                if (this.wsReconnectAttempts < this.wsMaxReconnectAttempts) {
+                    this.wsReconnectAttempts++;
+                    const delay = Math.min(1000 * Math.pow(2, this.wsReconnectAttempts), 30000);
+                    console.log(`Reconnecting in ${delay}ms...`);
+                    setTimeout(() => this.connectWebSocket(), delay);
+                }
+            };
+        } catch (e) {
+            console.error('Failed to create WebSocket:', e);
+        }
+    }
+
+    wsSend(message) {
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            this.ws.send(JSON.stringify(message));
+        }
+    }
+
+    handleWebSocketMessage(message) {
+        console.log('WebSocket message:', message);
+
+        switch (message.type) {
+            case 'node_discovered':
+                this.handleNodeDiscovered(message.node);
+                break;
+            case 'node_status_changed':
+                this.handleNodeStatusChanged(message.node_id, message.status);
+                break;
+            case 'latency_update':
+                this.handleLatencyUpdate(message.connections);
+                break;
+            case 'routing_table_changed':
+                console.log('Routing table changed for node:', message.node_id);
+                break;
+            case 'trace_route_result':
+                this.handleTraceRouteResult(message);
+                break;
+            case 'error':
+                this.showError(message.message);
+                break;
+        }
+    }
+
+    handleNodeDiscovered(node) {
+        console.log('Node discovered:', node);
+        this.discoveredNodes.set(node.id, node);
+        this.showSuccess(`New node discovered: ${node.hostname}`);
+        this.updateDiscoveredNodesList();
+        this.visualizeDiscoveredNodes();
+    }
+
+    handleNodeStatusChanged(nodeId, status) {
+        const node = this.discoveredNodes.get(nodeId);
+        if (node) {
+            node.status = status;
+            console.log(`Node ${nodeId} status changed to ${status}`);
+            this.visualizeDiscoveredNodes();
+        }
+    }
+
+    handleLatencyUpdate(connections) {
+        console.log('Latency update:', connections);
+        // Update edge colors based on latency
+    }
+
+    handleTraceRouteResult(result) {
+        if (result.matched_route && this.routingTable) {
+            const routeIndex = this.routingTable.routes.findIndex(r =>
+                r.destination === result.matched_route.destination &&
+                r.interface === result.matched_route.interface
+            );
+
+            if (routeIndex !== -1) {
+                this.highlightRoute(routeIndex);
+                this.showSuccess(`Route to ${result.destination} (${result.resolved_ip}) found!`);
+            }
+        }
+    }
+
+    async loadDiscoveredNodes() {
+        try {
+            const response = await fetch('/api/nodes');
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            const data = await response.json();
+            this.localNodeId = data.local_node_id;
+
+            data.nodes.forEach(node => {
+                this.discoveredNodes.set(node.id, node);
+            });
+
+            console.log(`Loaded ${data.nodes.length} discovered nodes`);
+            this.updateDiscoveredNodesList();
+            this.visualizeDiscoveredNodes();
+        } catch (error) {
+            console.error('Failed to load discovered nodes:', error);
+        }
+    }
+
+    updateDiscoveredNodesList() {
+        const container = document.getElementById('discovered-nodes-list');
+        if (!container) return;
+
+        if (this.discoveredNodes.size === 0) {
+            container.innerHTML = '<p style="color: #6b7280;">No nodes discovered yet</p>';
+            return;
+        }
+
+        const nodesList = Array.from(this.discoveredNodes.values())
+            .map(node => {
+                const statusColor = node.status === 'online' ? '#10b981' : '#6b7280';
+                return `
+                    <div class="discovered-node-item" style="margin: 8px 0; padding: 8px; background: #1a1a1a; border-left: 3px solid ${statusColor}; border-radius: 3px;">
+                        <div style="font-weight: bold;">${node.hostname}</div>
+                        <div style="font-size: 11px; color: #a0a0a0;">
+                            ${node.addresses.join(', ')}<br>
+                            Status: ${node.status}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+        container.innerHTML = nodesList;
     }
 
     async loadRoutingTable() {
@@ -110,27 +282,38 @@ class RouteVisualizer {
     }
 
     visualizeRoutes() {
-        // Clear existing nodes and edges
-        this.clearScene();
+        // Clear existing route nodes and edges (but not discovered nodes)
+        const routeKeys = Array.from(this.nodes.keys()).filter(key => key.startsWith('route-'));
+        routeKeys.forEach(key => {
+            const node = this.nodes.get(key);
+            if (node) {
+                this.scene.remove(node);
+                this.nodes.delete(key);
+            }
+        });
+
+        this.edges.forEach(edge => this.scene.remove(edge));
+        this.edges = [];
 
         if (!this.routingTable || !this.routingTable.routes) {
             return;
         }
 
-        // Create central node (local machine) - larger octahedron
-        const localNode = this.createLocalNode(0, 0, 0);
-        localNode.userData = {
-            type: 'local',
-            name: this.routingTable.hostname,
-            info: 'Local Machine'
-        };
-        this.nodes.set('local', localNode);
-        this.scene.add(localNode);
+        // Create/update central node (local machine)
+        let localNode = this.nodes.get('local');
+        if (!localNode) {
+            localNode = this.createLocalNode(0, 0, 0);
+            localNode.userData = {
+                type: 'local',
+                name: this.routingTable.hostname,
+                info: 'Local Machine'
+            };
+            this.nodes.set('local', localNode);
+            this.scene.add(localNode);
+            this.addLabel(localNode, this.routingTable.hostname, 'local-label');
+        }
 
-        // Add label for local node
-        this.addLabel(localNode, this.routingTable.hostname, 'local-label');
-
-        // Position routes around the central node with improved layout
+        // Position routes around the central node
         const routes = this.routingTable.routes;
         const radius = 12;
         const layers = Math.ceil(routes.length / 12);
@@ -146,19 +329,18 @@ class RouteVisualizer {
             const z = Math.sin(angle) * currentRadius;
             const y = (layer - layers / 2) * 3;
 
-            // Determine node type and color based on route
             const isDefault = route.destination === '0.0.0.0/0' || route.destination === 'default';
             const isGateway = route.gateway !== null;
 
             let color, nodeType;
             if (isDefault) {
-                color = 0xfbbf24; // Yellow for default route
+                color = 0xfbbf24;
                 nodeType = 'default-gateway';
             } else if (isGateway) {
-                color = 0x10b981; // Green for gateway routes
+                color = 0x10b981;
                 nodeType = 'gateway';
             } else {
-                color = 0x6b7280; // Gray for direct routes
+                color = 0x6b7280;
                 nodeType = 'direct';
             }
 
@@ -172,11 +354,9 @@ class RouteVisualizer {
             this.nodes.set(`route-${index}`, node);
             this.scene.add(node);
 
-            // Add label for route
             const label = isDefault ? 'Default' : route.destination.split('/')[0];
             this.addLabel(node, label, `route-label-${index}`);
 
-            // Create edge from local to route
             const edge = this.createEdge(
                 localNode.position,
                 node.position,
@@ -195,8 +375,62 @@ class RouteVisualizer {
         this.updateStats();
     }
 
+    visualizeDiscoveredNodes() {
+        // Remove existing discovered node meshes
+        const discoveredKeys = Array.from(this.nodes.keys()).filter(key => key.startsWith('discovered-'));
+        discoveredKeys.forEach(key => {
+            const node = this.nodes.get(key);
+            if (node) {
+                this.scene.remove(node);
+                this.nodes.delete(key);
+            }
+        });
+
+        // Position discovered nodes in a separate layer
+        const nodeArray = Array.from(this.discoveredNodes.values());
+        const meshRadius = 25;
+
+        nodeArray.forEach((node, index) => {
+            const angle = (index / nodeArray.length) * Math.PI * 2;
+            const x = Math.cos(angle) * meshRadius;
+            const z = Math.sin(angle) * meshRadius;
+            const y = 8;
+
+            const color = node.status === 'online' ? 0x10b981 : 0x6b7280;
+            const mesh = this.createDiscoveredNodeMesh(x, y, z, color);
+
+            mesh.userData = {
+                type: 'discovered-node',
+                node: node,
+                nodeId: node.id
+            };
+
+            this.nodes.set(`discovered-${node.id}`, mesh);
+            this.scene.add(mesh);
+            this.addLabel(mesh, node.hostname, `discovered-label-${node.id}`);
+
+            // Create edge from local node to discovered node
+            const localNode = this.nodes.get('local');
+            if (localNode) {
+                const edge = this.createEdge(
+                    localNode.position,
+                    mesh.position,
+                    color,
+                    false
+                );
+                edge.userData = {
+                    type: 'mesh-edge',
+                    nodeId: node.id
+                };
+                this.edges.push(edge);
+                this.scene.add(edge);
+            }
+        });
+
+        this.updateStats();
+    }
+
     createLocalNode(x, y, z) {
-        // Octahedron for local machine - more distinct
         const geometry = new THREE.OctahedronGeometry(2, 0);
         const material = new THREE.MeshStandardMaterial({
             color: 0x3b82f6,
@@ -208,7 +442,6 @@ class RouteVisualizer {
         const mesh = new THREE.Mesh(geometry, material);
         mesh.position.set(x, y, z);
 
-        // Add glow effect
         const glowGeometry = new THREE.OctahedronGeometry(2.3, 0);
         const glowMaterial = new THREE.MeshBasicMaterial({
             color: 0x3b82f6,
@@ -225,15 +458,12 @@ class RouteVisualizer {
         let geometry, size;
 
         if (nodeType === 'default-gateway') {
-            // Box for default gateway
             geometry = new THREE.BoxGeometry(1.2, 1.2, 1.2);
             size = 1.2;
         } else if (nodeType === 'gateway') {
-            // Sphere for gateways
             geometry = new THREE.SphereGeometry(0.8, 16, 16);
             size = 0.8;
         } else {
-            // Smaller sphere for direct routes
             geometry = new THREE.SphereGeometry(0.6, 12, 12);
             size = 0.6;
         }
@@ -244,6 +474,21 @@ class RouteVisualizer {
             emissiveIntensity: 0.2,
             metalness: 0.4,
             roughness: 0.6
+        });
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.position.set(x, y, z);
+        return mesh;
+    }
+
+    createDiscoveredNodeMesh(x, y, z, color) {
+        // Use dodecahedron for discovered nodes to distinguish them
+        const geometry = new THREE.DodecahedronGeometry(1.5, 0);
+        const material = new THREE.MeshStandardMaterial({
+            color: color,
+            emissive: color,
+            emissiveIntensity: 0.3,
+            metalness: 0.5,
+            roughness: 0.4
         });
         const mesh = new THREE.Mesh(geometry, material);
         mesh.position.set(x, y, z);
@@ -287,7 +532,7 @@ class RouteVisualizer {
         labelDiv.style.borderRadius = '3px';
 
         const label = new THREE.CSS2DObject(labelDiv);
-        label.position.set(0, 1.5, 0);
+        label.position.set(0, 2, 0);
         object.add(label);
         this.labels.set(id, label);
     }
@@ -298,12 +543,10 @@ class RouteVisualizer {
         const originalColor = object.material.color.getHex();
         const originalEmissive = object.material.emissive.getHex();
 
-        // Store original values
         object.userData.originalColor = originalColor;
         object.userData.originalEmissive = originalEmissive;
         object.userData.originalScale = object.scale.clone();
 
-        // Apply highlight
         if (isHover) {
             object.material.emissiveIntensity = 0.6;
             object.scale.multiplyScalar(1.1);
@@ -338,14 +581,12 @@ class RouteVisualizer {
             return;
         }
 
-        // Highlight the route node
         const routeNode = this.nodes.get(`route-${routeIndex}`);
         if (routeNode) {
             this.highlightObject(routeNode, false);
             this.selectedObject = routeNode;
         }
 
-        // Highlight the edge
         const edge = this.edges.find(e => e.userData && e.userData.index === routeIndex);
         if (edge) {
             edge.material.color.setHex(0x3b82f6);
@@ -356,12 +597,10 @@ class RouteVisualizer {
             this.highlightedObjects.push(edge);
         }
 
-        // Display route details
         if (routeNode && routeNode.userData.route) {
             this.displayRouteDetails(routeNode.userData.route);
         }
 
-        // Focus camera on selected node
         this.focusOnObject(routeNode);
     }
 
@@ -377,17 +616,13 @@ class RouteVisualizer {
     }
 
     clearScene() {
-        // Remove all nodes
         this.nodes.forEach(node => this.scene.remove(node));
         this.nodes.clear();
 
-        // Remove all edges
         this.edges.forEach(edge => this.scene.remove(edge));
         this.edges = [];
 
-        // Clear labels
         this.labels.clear();
-
         this.clearHighlights();
     }
 
@@ -421,7 +656,6 @@ class RouteVisualizer {
 
             const result = await response.json();
 
-            // Find and highlight the matching route
             if (result.matched_route) {
                 const routeIndex = this.routingTable.routes.findIndex(r =>
                     r.destination === result.matched_route.destination &&
@@ -449,14 +683,11 @@ class RouteVisualizer {
 
         this.raycaster.setFromCamera(this.mouse, this.camera);
 
-        // Check intersections with nodes
         const nodeArray = Array.from(this.nodes.values());
         const intersects = this.raycaster.intersectObjects(nodeArray, true);
 
-        // Clear previous hover if hovering different object
         if (this.hoveredObject && (!intersects.length || intersects[0].object !== this.hoveredObject)) {
             if (this.hoveredObject !== this.selectedObject) {
-                // Remove hover highlight
                 if (this.hoveredObject.userData.originalColor !== undefined) {
                     this.hoveredObject.material.emissiveIntensity = 0.2;
                     this.hoveredObject.scale.copy(this.hoveredObject.userData.originalScale);
@@ -466,7 +697,6 @@ class RouteVisualizer {
             container.style.cursor = 'default';
         }
 
-        // Apply hover to new object
         if (intersects.length > 0) {
             const object = intersects[0].object;
             if (object !== this.hoveredObject && object !== this.selectedObject) {
@@ -474,9 +704,12 @@ class RouteVisualizer {
                 this.highlightObject(object, true);
                 container.style.cursor = 'pointer';
 
-                // Show tooltip
                 if (object.userData && object.userData.route) {
                     this.showTooltip(object.userData.route, event.clientX, event.clientY);
+                } else if (object.userData && object.userData.node) {
+                    this.showTooltip({
+                        info: `${object.userData.node.hostname} (${object.userData.node.status})`
+                    }, event.clientX, event.clientY);
                 } else if (object.userData && object.userData.name) {
                     this.showTooltip({ info: object.userData.info }, event.clientX, event.clientY);
                 }
@@ -502,6 +735,9 @@ class RouteVisualizer {
             const object = intersects[0].object;
             if (object.userData && object.userData.type === 'route') {
                 this.highlightRoute(object.userData.index);
+            } else if (object.userData && object.userData.type === 'discovered-node') {
+                console.log('Clicked discovered node:', object.userData.node);
+                // TODO: Show node details or switch to that node's view
             }
         }
     }
@@ -557,12 +793,10 @@ class RouteVisualizer {
     setupEventListeners() {
         const container = document.getElementById('canvas-container');
 
-        // Mouse events for interaction
         container.addEventListener('mousemove', (e) => this.onMouseMove(e));
         container.addEventListener('click', (e) => this.onClick(e));
         container.addEventListener('dblclick', (e) => this.onDoubleClick(e));
 
-        // UI button events
         document.getElementById('trace-btn').addEventListener('click', () => {
             const destination = document.getElementById('destination').value.trim();
             if (destination) {
@@ -574,6 +808,7 @@ class RouteVisualizer {
 
         document.getElementById('refresh-btn').addEventListener('click', () => {
             this.loadRoutingTable();
+            this.loadDiscoveredNodes();
         });
 
         document.getElementById('destination').addEventListener('keypress', (e) => {
@@ -582,10 +817,10 @@ class RouteVisualizer {
             }
         });
 
-        // Keyboard shortcuts
         document.addEventListener('keydown', (e) => {
             if (e.key === 'r' || e.key === 'R') {
                 this.loadRoutingTable();
+                this.loadDiscoveredNodes();
             } else if (e.key === 't' || e.key === 'T') {
                 document.getElementById('destination').focus();
             } else if (e.key === 'Escape') {
@@ -602,6 +837,7 @@ class RouteVisualizer {
             statsDiv.innerHTML = `
                 Nodes: ${this.nodes.size} |
                 Routes: ${this.routingTable.routes.length} |
+                Discovered: ${this.discoveredNodes.size} |
                 FPS: ${this.fps}
             `;
         }
