@@ -100,11 +100,25 @@ button:active {
     height: 100%;
 }
 
+#stats-bar {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: rgba(26, 26, 26, 0.9);
+    padding: 10px 15px;
+    border-radius: 4px;
+    border: 1px solid #333;
+    font-family: monospace;
+    font-size: 12px;
+    color: #10b981;
+}
+
 #info {
     background: #2a2a2a;
     padding: 15px;
     border-radius: 4px;
     min-height: 100px;
+    margin-bottom: 15px;
 }
 
 #route-details {
@@ -121,6 +135,70 @@ button:active {
     padding: 8px;
     border-left: 3px solid #3b82f6;
     margin: 5px 0;
+}
+
+#legend {
+    background: #2a2a2a;
+    padding: 15px;
+    border-radius: 4px;
+    margin-bottom: 15px;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    margin: 8px 0;
+    font-size: 13px;
+}
+
+.legend-color {
+    width: 20px;
+    height: 20px;
+    border-radius: 3px;
+    margin-right: 10px;
+    display: inline-block;
+}
+
+#shortcuts {
+    background: #2a2a2a;
+    padding: 15px;
+    border-radius: 4px;
+    margin-bottom: 15px;
+}
+
+.shortcut-item {
+    margin: 6px 0;
+    font-size: 13px;
+}
+
+kbd {
+    background: #1a1a1a;
+    border: 1px solid #444;
+    border-radius: 3px;
+    padding: 2px 6px;
+    font-family: monospace;
+    font-size: 11px;
+    color: #fbbf24;
+}
+
+.tooltip {
+    position: fixed;
+    background: rgba(0, 0, 0, 0.9);
+    color: #e0e0e0;
+    padding: 8px 12px;
+    border-radius: 4px;
+    border: 1px solid #3b82f6;
+    font-size: 12px;
+    font-family: monospace;
+    pointer-events: none;
+    z-index: 1000;
+    display: none;
+    line-height: 1.4;
+}
+
+.node-label {
+    user-select: none;
+    pointer-events: none;
 }
 
 .error {
@@ -145,4 +223,22 @@ button:active {
     text-align: center;
     padding: 20px;
     color: #a0a0a0;
+}
+
+/* Scrollbar styling */
+#controls::-webkit-scrollbar {
+    width: 8px;
+}
+
+#controls::-webkit-scrollbar-track {
+    background: #1a1a1a;
+}
+
+#controls::-webkit-scrollbar-thumb {
+    background: #444;
+    border-radius: 4px;
+}
+
+#controls::-webkit-scrollbar-thumb:hover {
+    background: #555;
 }

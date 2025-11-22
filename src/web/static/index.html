@@ -20,15 +20,46 @@
                 <h3>Route Information</h3>
                 <div id="route-details"></div>
             </div>
+            <div id="legend">
+                <h3>Legend</h3>
+                <div class="legend-item">
+                    <span class="legend-color" style="background: #3b82f6;"></span>
+                    <span>Local Machine</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-color" style="background: #fbbf24;"></span>
+                    <span>Default Gateway (Box)</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-color" style="background: #10b981;"></span>
+                    <span>Gateway Routes (Sphere)</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-color" style="background: #6b7280;"></span>
+                    <span>Direct Routes (Small Sphere)</span>
+                </div>
+            </div>
+            <div id="shortcuts">
+                <h3>Keyboard Shortcuts</h3>
+                <div class="shortcut-item"><kbd>R</kbd> - Refresh routes</div>
+                <div class="shortcut-item"><kbd>T</kbd> - Focus search</div>
+                <div class="shortcut-item"><kbd>ESC</kbd> - Clear selection</div>
+                <div class="shortcut-item"><kbd>Click</kbd> - Select node</div>
+                <div class="shortcut-item"><kbd>Double-click</kbd> - Focus camera</div>
+            </div>
             <div id="error" class="error" style="display: none;"></div>
         </div>
         <div id="canvas-container">
             <canvas id="three-canvas"></canvas>
+            <div id="stats-bar">
+                <div id="stats">Loading...</div>
+            </div>
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/renderers/CSS2DRenderer.js"></script>
     <script src="/static/app.js"></script>
 </body>
 </html>
