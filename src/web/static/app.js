@@ -27,6 +27,8 @@ class RouteVisualizer {
         this.discoveredNodes = new Map();
         this.localNodeId = null;
         this.latencyData = new Map(); // nodeId -> latency_ms
+        this.bandwidthTests = new Map(); // testId -> test data
+        this.bandwidthResults = new Map(); // nodeId -> result
 
         this.init();
         this.setupEventListeners();
@@ -181,7 +183,27 @@ class RouteVisualizer {
             case 'error':
                 this.showError(message.message);
                 break;
+            case 'bandwidth_test_progress':
+                this.handleBandwidthTestProgress(message);
+                break;
+            case 'bandwidth_test_result':
+                this.handleBandwidthTestResult(message);
+                break;
         }
+    }
+
+    handleBandwidthTestProgress(message) {
+        console.log('Bandwidth test progress:', message);
+        this.bandwidthTests.set(message.test_id, message);
+        this.updateDiscoveredNodesList();
+    }
+
+    handleBandwidthTestResult(message) {
+        console.log('Bandwidth test result:', message);
+        this.bandwidthResults.set(message.target_node_id, message);
+        this.bandwidthTests.delete(message.test_id);
+        this.updateDiscoveredNodesList();
+        this.showSuccess(`Bandwidth test complete: ↑${message.upload_mbps.toFixed(2)} Mbps ↓${message.download_mbps.toFixed(2)} Mbps`);
     }
 
     handleNodeDiscovered(node) {
@@ -320,18 +342,54 @@ class RouteVisualizer {
         const nodesList = Array.from(this.discoveredNodes.values())
             .map(node => {
                 const statusColor = node.status === 'online' ? '#10b981' : '#6b7280';
+                const latency = this.latencyData.get(node.id);
+                const result = this.bandwidthResults.get(node.id);
+
+                // Check if there's an active test for this node
+                const activeTest = Array.from(this.bandwidthTests.values())
+                    .find(test => test.test_id.includes(node.id));
+
+                let bandwidthInfo = '';
+                if (activeTest) {
+                    bandwidthInfo = `<div style="font-size: 10px; color: #fbbf24; margin-top: 4px;">Testing: ${activeTest.phase} (${activeTest.progress_percent}%)</div>`;
+                } else if (result) {
+                    bandwidthInfo = `<div style="font-size: 10px; color: #10b981; margin-top: 4px;">↑${result.upload_mbps.toFixed(1)} Mbps ↓${result.download_mbps.toFixed(1)} Mbps</div>`;
+                }
+
                 return `
-                    <div class="discovered-node-item" style="margin: 8px 0; padding: 8px; background: #1a1a1a; border-left: 3px solid ${statusColor}; border-radius: 3px;">
-                        <div style="font-weight: bold;">${node.hostname}</div>
+                    <div class="node-item ${node.status}" style="position: relative;">
+                        <div class="node-hostname">${node.hostname}</div>
+                        <div class="node-id">${node.id.substring(0, 8)}...</div>
                         <div style="font-size: 11px; color: #a0a0a0;">
                             ${node.addresses.join(', ')}<br>
-                            Status: ${node.status}
+                            ${latency !== undefined ? `Latency: ${latency}ms<br>` : ''}
                         </div>
+                        <div class="node-status ${node.status}">${node.status}</div>
+                        ${bandwidthInfo}
+                        ${!activeTest && node.status === 'online' ? `<button class="bandwidth-test-btn" data-node-id="${node.id}" style="margin-top: 6px; padding: 4px 8px; background: #3b82f6; border: none; color: white; border-radius: 3px; cursor: pointer; font-size: 11px;">Test Bandwidth</button>` : ''}
                     </div>
                 `;
             }).join('');
 
         container.innerHTML = nodesList;
+
+        // Add event listeners to bandwidth test buttons
+        document.querySelectorAll('.bandwidth-test-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const nodeId = e.target.getAttribute('data-node-id');
+                this.startBandwidthTest(nodeId);
+            });
+        });
+    }
+
+    startBandwidthTest(nodeId) {
+        const testId = `test-${nodeId}-${Date.now()}`;
+        this.wsSend({
+            type: 'start_bandwidth_test',
+            test_id: testId,
+            node_id: nodeId
+        });
+        this.showInfo(`Starting bandwidth test to node ${nodeId.substring(0, 8)}...`);
     }
 
     async loadRoutingTable() {
