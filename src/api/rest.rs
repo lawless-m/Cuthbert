@@ -11,8 +11,8 @@ use std::sync::Arc;
 use tokio::sync::broadcast;
 
 use crate::routes::{parser, lookup::RouteEngine, RoutingTable};
-use crate::discovery::{NodeInfo, PeerRegistry};
-use super::{TraceRouteRequest, TraceRouteResponse, ErrorResponse};
+use crate::discovery::{NodeInfo, PeerRegistry, traceroute::TracerouteExecutor};
+use super::{TraceRouteRequest, TraceRouteResponse, ErrorResponse, TracerouteRequest, TracerouteResult};
 use super::websocket::ServerMessage;
 
 #[derive(Clone)]
@@ -52,6 +52,7 @@ pub fn create_api_router(state: Arc<AppState>) -> Router {
         .route("/ws", get(super::websocket::websocket_handler))
         .route("/api/routing-table", get(get_routing_table))
         .route("/api/trace-route", post(trace_route))
+        .route("/api/traceroute", post(traceroute))
         .route("/api/nodes", get(get_nodes))
         .route("/api/nodes/:node_id", get(get_node))
         .route("/api/nodes/:node_id/routing-table", get(get_remote_routing_table))
@@ -64,6 +65,7 @@ async fn hello_world(State(_state): State<Arc<AppState>>) -> &'static str {
      API Endpoints:\n\
      - GET  /api/routing-table      - Get current routing table\n\
      - POST /api/trace-route        - Trace route to destination\n\
+     - POST /api/traceroute         - Perform traceroute to destination\n\
      - GET  /api/nodes              - List discovered nodes\n\
      - GET  /api/nodes/{id}         - Get node details\n\
      - WS   /ws                     - WebSocket for real-time updates\n\
@@ -147,6 +149,47 @@ async fn trace_route(
         resolved_ip: ip.to_string(),
         matched_route,
     }))
+}
+
+async fn traceroute(
+    State(_state): State<Arc<AppState>>,
+    Json(request): Json<TracerouteRequest>,
+) -> Result<Json<TracerouteResult>, (StatusCode, Json<ErrorResponse>)> {
+    // Resolve destination to IP
+    let ip = match request.destination.parse() {
+        Ok(ip) => ip,
+        Err(_) => {
+            // Try DNS resolution
+            match tokio::net::lookup_host(format!("{}:0", request.destination))
+                .await
+                .ok()
+                .and_then(|mut addrs| addrs.next())
+            {
+                Some(addr) => addr.ip(),
+                None => {
+                    return Err((
+                        StatusCode::BAD_REQUEST,
+                        Json(ErrorResponse {
+                            error: "InvalidDestination".to_string(),
+                            message: format!("Could not resolve destination: {}", request.destination),
+                        }),
+                    ));
+                }
+            }
+        }
+    };
+
+    // Execute traceroute
+    match TracerouteExecutor::traceroute(ip).await {
+        Ok(result) => Ok(Json(result)),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse {
+                error: "TracerouteFailed".to_string(),
+                message: e,
+            }),
+        )),
+    }
 }
 
 #[derive(serde::Serialize)]
