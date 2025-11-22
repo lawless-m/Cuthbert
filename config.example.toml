@@ -1,0 +1,48 @@
+# Example Configuration File for Network Route Visualizer
+# Copy this file to config.toml and modify as needed
+
+[server]
+# Web server port (default: 8080)
+port = 8080
+
+# Auto-open browser on startup (default: true)
+auto_open_browser = true
+
+# Bind address - use "0.0.0.0" to allow external connections (default: "127.0.0.1")
+bind_address = "127.0.0.1"
+
+[discovery]
+# Enable automatic node discovery (default: true)
+enabled = true
+
+# How often to announce presence in seconds (default: 30)
+interval_seconds = 30
+
+# Remove peers after this many seconds of inactivity (default: 90)
+timeout_seconds = 90
+
+# Multicast group for discovery (default: "239.255.42.1")
+multicast_group = "239.255.42.1"
+
+# Multicast port for discovery (default: 5678)
+multicast_port = 5678
+
+[testing]
+# Enable automatic ping to discovered nodes (default: true)
+ping_enabled = true
+
+# Ping interval in seconds (default: 60)
+ping_interval_seconds = 60
+
+# Bandwidth test duration in seconds (default: 10)
+bandwidth_test_duration = 10
+
+# Port for bandwidth testing (default: 9090)
+bandwidth_port = 9090
+
+[logging]
+# Log level: error, warn, info, debug, trace (default: "info")
+level = "info"
+
+# Optional: log to file (commented out by default)
+# file = "/var/log/network-route-visualizer.log"

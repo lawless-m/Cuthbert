@@ -89,6 +89,25 @@ The tool will:
 
 Enter a destination in the search box to trace the route!
 
+### With Custom Configuration
+
+```bash
+# Use a specific port
+sudo ./network-route-visualizer --port 3000
+
+# Disable browser auto-open
+sudo ./network-route-visualizer --no-browser
+
+# Use a config file
+sudo ./network-route-visualizer --config my-config.toml
+
+# Set log level
+sudo ./network-route-visualizer --log-level debug
+
+# Disable discovery
+sudo ./network-route-visualizer --no-discovery
+```
+
 ### Multi-Node Mesh
 
 Run the same binary on multiple machines connected via VPN. They'll automatically discover each other and share routing information.
@@ -107,35 +126,64 @@ sudo ./network-route-visualizer
 
 ### Command-Line Options
 
-```
+```bash
 network-route-visualizer [OPTIONS]
 
 OPTIONS:
-    --port <PORT>              Web server port (default: 8080)
-    --no-browser              Don't auto-open browser
-    --log-level <LEVEL>       Logging level: error, warn, info, debug, trace
-    --config <PATH>           Path to configuration file
-    -h, --help                Print help information
-    -V, --version             Print version information
+    -p, --port <PORT>                   Web server port (default: 8080)
+        --no-browser                    Don't auto-open browser
+    -l, --log-level <LEVEL>            Logging level: error, warn, info, debug, trace
+    -c, --config <PATH>                Path to configuration file
+        --discovery-interval <SECONDS>  Discovery interval (default: 30)
+        --peer-timeout <SECONDS>        Peer timeout (default: 90)
+        --ping-interval <SECONDS>       Ping interval (default: 60)
+        --bandwidth-duration <SECONDS>  Bandwidth test duration (default: 10)
+        --bandwidth-port <PORT>         Bandwidth test port (default: 9090)
+        --no-discovery                  Disable node discovery
+        --no-ping                       Disable automatic ping
+    -h, --help                         Print help information
+    -V, --version                      Print version information
 ```
 
 ### Configuration File
 
-Create a `config.toml` file:
+Create a `config.toml` file for persistent settings:
 
 ```toml
-# Server settings
+[server]
 port = 8080
 auto_open_browser = true
+bind_address = "127.0.0.1"  # Use "0.0.0.0" for external access
 
-# Discovery settings
-discovery_interval_seconds = 30
-peer_timeout_seconds = 90
+[discovery]
+enabled = true
+interval_seconds = 30
+timeout_seconds = 90
+multicast_group = "239.255.42.1"
+multicast_port = 5678
 
-# Testing settings
+[testing]
+ping_enabled = true
 ping_interval_seconds = 60
 bandwidth_test_duration = 10
+bandwidth_port = 9090
+
+[logging]
+level = "info"
+# file = "/var/log/network-route-visualizer.log"  # Optional
 ```
+
+**Configuration Priority**: CLI arguments > Config file > Environment variables > Defaults
+
+**Environment Variables**:
+```bash
+export NRV_PORT=3000
+export NRV_LOG_LEVEL=debug
+export NRV_NO_BROWSER=1
+export NRV_CONFIG=/path/to/config.toml
+```
+
+See `config.example.toml` for a complete example.
 
 ### Platform-Specific Notes
 
@@ -177,6 +225,8 @@ curl http://localhost:8080/api/nodes
 - **[TECHNICAL_ARCHITECTURE.md](TECHNICAL_ARCHITECTURE.md)** - System design and architecture
 - **[IMPLEMENTATION_ROADMAP.md](IMPLEMENTATION_ROADMAP.md)** - Development phases and milestones
 - **[API_SPECIFICATION.md](API_SPECIFICATION.md)** - Complete API reference
+- **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** - Common issues and solutions
+- **[TESTING.md](TESTING.md)** - Testing guide and procedures
 
 ## Development
 
