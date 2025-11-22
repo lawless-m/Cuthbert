@@ -19,6 +19,7 @@ use super::websocket::ServerMessage;
 pub struct AppState {
     pub peer_registry: Arc<PeerRegistry>,
     pub broadcast_tx: broadcast::Sender<ServerMessage>,
+    pub bandwidth_service: Option<Arc<crate::discovery::bandwidth::BandwidthService>>,
 }
 
 impl AppState {
@@ -27,7 +28,13 @@ impl AppState {
         AppState {
             peer_registry,
             broadcast_tx: tx,
+            bandwidth_service: None,
         }
+    }
+
+    pub fn with_bandwidth_service(mut self, service: Arc<crate::discovery::bandwidth::BandwidthService>) -> Self {
+        self.bandwidth_service = Some(service);
+        self
     }
 
     pub fn subscribe_to_updates(&self) -> broadcast::Receiver<ServerMessage> {

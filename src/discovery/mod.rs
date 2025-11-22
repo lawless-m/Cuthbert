@@ -2,6 +2,8 @@
 
 pub mod broadcast;
 pub mod gossip;
+pub mod ping;
+pub mod bandwidth;
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

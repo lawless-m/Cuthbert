@@ -33,6 +33,11 @@ pub enum ClientMessage {
         request_id: String,
         node_id: String,
     },
+    #[serde(rename = "start_bandwidth_test")]
+    StartBandwidthTest {
+        test_id: String,
+        node_id: String,
+    },
 }
 
 // WebSocket message types from server to client
@@ -71,6 +76,21 @@ pub enum ServerMessage {
         request_id: Option<String>,
         error_code: String,
         message: String,
+    },
+    #[serde(rename = "bandwidth_test_progress")]
+    BandwidthTestProgress {
+        test_id: String,
+        progress_percent: u8,
+        phase: String,
+        bytes_transferred: u64,
+    },
+    #[serde(rename = "bandwidth_test_result")]
+    BandwidthTestResult {
+        test_id: String,
+        target_node_id: String,
+        upload_mbps: f64,
+        download_mbps: f64,
+        duration_secs: u64,
     },
 }
 
@@ -123,7 +143,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
     }
 }
 
-async fn handle_client_message(msg: ClientMessage, _state: &Arc<AppState>) {
+async fn handle_client_message(msg: ClientMessage, state: &Arc<AppState>) {
     match msg {
         ClientMessage::TraceRoute { request_id, destination } => {
             // Handle trace route request
@@ -135,6 +155,43 @@ async fn handle_client_message(msg: ClientMessage, _state: &Arc<AppState>) {
         }
         ClientMessage::GetRemoteRoutingTable { request_id, node_id } => {
             tracing::info!("Get remote routing table: {} for {}", request_id, node_id);
+        }
+        ClientMessage::StartBandwidthTest { test_id, node_id } => {
+            tracing::info!("Bandwidth test request: {} to {}", test_id, node_id);
+
+            if let Some(bandwidth_service) = &state.bandwidth_service {
+                // Get node info to find IP address
+                if let Some(node) = state.peer_registry.get_node(&node_id).await {
+                    if let Some(&ip_addr) = node.addresses.first() {
+                        let target_addr = std::net::SocketAddr::new(ip_addr, 8081);
+                        let bandwidth_service = bandwidth_service.clone();
+                        let state_clone = state.clone();
+                        let test_id_clone = test_id.clone();
+
+                        // Run bandwidth test in background
+                        tokio::spawn(async move {
+                            match bandwidth_service.run_bandwidth_test(test_id_clone.clone(), target_addr).await {
+                                Ok(result) => {
+                                    state_clone.send_update(ServerMessage::BandwidthTestResult {
+                                        test_id: result.test_id,
+                                        target_node_id: result.target_node_id,
+                                        upload_mbps: result.upload_mbps,
+                                        download_mbps: result.download_mbps,
+                                        duration_secs: result.duration_secs,
+                                    });
+                                }
+                                Err(e) => {
+                                    state_clone.send_update(ServerMessage::Error {
+                                        request_id: Some(test_id_clone),
+                                        error_code: "BandwidthTestFailed".to_string(),
+                                        message: e,
+                                    });
+                                }
+                            }
+                        });
+                    }
+                }
+            }
         }
     }
 }
