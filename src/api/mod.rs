@@ -1,6 +1,7 @@
 // API module - REST endpoints and WebSocket handling
 
 pub mod rest;
+pub mod websocket;
 
 use serde::{Deserialize, Serialize};
 
