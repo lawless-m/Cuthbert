@@ -1,0 +1,148 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    background: #0a0a0a;
+    color: #e0e0e0;
+    overflow: hidden;
+}
+
+#app {
+    display: flex;
+    height: 100vh;
+}
+
+#controls {
+    width: 350px;
+    background: #1a1a1a;
+    border-right: 1px solid #333;
+    padding: 20px;
+    overflow-y: auto;
+}
+
+h1 {
+    font-size: 20px;
+    margin-bottom: 20px;
+    color: #3b82f6;
+}
+
+h3 {
+    font-size: 16px;
+    margin: 15px 0 10px 0;
+    color: #10b981;
+}
+
+.control-group {
+    margin-bottom: 20px;
+}
+
+label {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 14px;
+    color: #a0a0a0;
+}
+
+input[type="text"] {
+    width: 100%;
+    padding: 10px;
+    background: #2a2a2a;
+    border: 1px solid #444;
+    color: #e0e0e0;
+    border-radius: 4px;
+    font-size: 14px;
+    margin-bottom: 10px;
+}
+
+input[type="text"]:focus {
+    outline: none;
+    border-color: #3b82f6;
+}
+
+button {
+    padding: 10px 16px;
+    background: #3b82f6;
+    border: none;
+    color: white;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    margin-right: 8px;
+}
+
+button:hover {
+    background: #2563eb;
+}
+
+button:active {
+    background: #1d4ed8;
+}
+
+#refresh-btn {
+    background: #10b981;
+}
+
+#refresh-btn:hover {
+    background: #059669;
+}
+
+#canvas-container {
+    flex: 1;
+    position: relative;
+}
+
+#three-canvas {
+    width: 100%;
+    height: 100%;
+}
+
+#info {
+    background: #2a2a2a;
+    padding: 15px;
+    border-radius: 4px;
+    min-height: 100px;
+}
+
+#route-details {
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+#route-details p {
+    margin: 5px 0;
+}
+
+#route-details .route-item {
+    background: #1a1a1a;
+    padding: 8px;
+    border-left: 3px solid #3b82f6;
+    margin: 5px 0;
+}
+
+.error {
+    background: #991b1b;
+    color: #fee2e2;
+    padding: 12px;
+    border-radius: 4px;
+    margin-top: 10px;
+    font-size: 13px;
+}
+
+.success {
+    background: #065f46;
+    color: #d1fae5;
+    padding: 12px;
+    border-radius: 4px;
+    margin-top: 10px;
+    font-size: 13px;
+}
+
+.loading {
+    text-align: center;
+    padding: 20px;
+    color: #a0a0a0;
+}

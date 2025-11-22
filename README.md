@@ -1,219 +1,274 @@
-# Network Route Visualizer - Development Guide
+# Network Route Visualizer
 
-## Quick Start for Claude Code
+A cross-platform network topology visualization tool that displays routing tables as an interactive 3D graph. Visualize routes, trace paths, discover connected nodes, and diagnose connectivity issues—all in a beautiful 3D interface.
 
-This project implements a cross-platform network topology visualization tool in Rust with a three.js frontend. You have four planning documents to guide implementation:
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20macOS-lightgrey)
+![Status](https://img.shields.io/badge/status-in%20development-yellow)
 
-### 📋 Planning Documents
+## Overview
 
-1. **PROJECT_OVERVIEW.md** - Start here to understand what we're building and why
-2. **TECHNICAL_ARCHITECTURE.md** - System design, data structures, and component details
-3. **IMPLEMENTATION_ROADMAP.md** - Phased development plan with milestones
-4. **API_SPECIFICATION.md** - Complete API documentation with examples
+Managing complex routing scenarios with multiple VPN connections can be challenging. This tool helps you answer questions like:
+- Which VPN does traffic to destination X use?
+- Can machine A reach machine K?
+- What's the latency between nodes?
+- Is the VPN path faster than the public internet?
+- Why can't two machines communicate?
 
-### 🎯 Implementation Strategy
+## Features
 
-**Follow the phased approach in IMPLEMENTATION_ROADMAP.md:**
+### 🗺️ Interactive 3D Visualization
+- Beautiful 3D graph powered by three.js
+- Your machine at the center with routes radiating outward
+- Color-coded connections based on performance
+- Interactive: click nodes and edges for detailed information
 
-#### Phase 1: Core Foundation (Start Here)
-Build the MVP - single machine visualization with route tracing:
-- Set up Rust project with axum web framework
-- Implement routing table parser for Linux (then Windows/macOS)
-- Create route lookup engine (longest prefix matching)
-- Build basic three.js frontend
-- Implement route tracing UI
+### 🔍 Route Tracing
+- Enter any destination (IP or domain name)
+- See the exact path your traffic will take
+- Highlights which VPN tunnel or interface will be used
+- Perform longest prefix matching on your routing table
 
-**Goal**: Get something working quickly that you can iterate on.
+### 🌐 Multi-Node Discovery
+- Zero-configuration auto-discovery of other nodes
+- View routing tables from remote machines
+- See the entire network topology
+- Identify connectivity gaps with actionable suggestions
 
-#### Phase 2-6: Build Out Features
-Once Phase 1 works, add:
-- Enhanced 3D visualization
-- Multi-node discovery mesh
-- Performance testing (ping, bandwidth)
-- Public internet routes with traceroute
-- Polish and cross-platform support
+### ⚡ Performance Testing
+- Automatic background latency monitoring
+- On-demand bandwidth testing between nodes
+- Visual indicators show connection quality
+- Compare VPN routes vs. public internet paths
 
-### 🏗️ Project Structure
+### 🔧 Connectivity Diagnosis
+- Detect when nodes can't communicate
+- Get platform-specific fix commands (ready to copy-paste)
+- See alternative routing paths
+- Identify firewall and configuration issues
 
-Create this structure:
+## Installation
+
+### Prerequisites
+- Rust 1.70 or later (for building from source)
+- Elevated privileges (root on Linux/macOS, Administrator on Windows)
+
+### Building from Source
+
+```bash
+git clone https://github.com/yourusername/network-route-visualizer.git
+cd network-route-visualizer
+cargo build --release
+```
+
+The compiled binary will be in `target/release/network-route-visualizer`.
+
+### Pre-built Binaries
+
+Download the latest release for your platform:
+- [Linux (x86_64)](releases)
+- [Windows (x86_64)](releases)
+- [macOS (Intel & Apple Silicon)](releases)
+
+## Quick Start
+
+### Single Machine Mode
+
+```bash
+# Linux/macOS (requires root)
+sudo ./network-route-visualizer
+
+# Windows (run as Administrator)
+.\network-route-visualizer.exe
+```
+
+The tool will:
+1. Start a web server on `http://localhost:8080`
+2. Auto-open your browser
+3. Display your routing table as a 3D graph
+
+Enter a destination in the search box to trace the route!
+
+### Multi-Node Mesh
+
+Run the same binary on multiple machines connected via VPN. They'll automatically discover each other and share routing information.
+
+```bash
+# On machine A
+sudo ./network-route-visualizer
+
+# On machine B (on the same VPN network)
+sudo ./network-route-visualizer
+
+# They'll discover each other automatically!
+```
+
+## Usage
+
+### Command-Line Options
+
+```
+network-route-visualizer [OPTIONS]
+
+OPTIONS:
+    --port <PORT>              Web server port (default: 8080)
+    --no-browser              Don't auto-open browser
+    --log-level <LEVEL>       Logging level: error, warn, info, debug, trace
+    --config <PATH>           Path to configuration file
+    -h, --help                Print help information
+    -V, --version             Print version information
+```
+
+### Configuration File
+
+Create a `config.toml` file:
+
+```toml
+# Server settings
+port = 8080
+auto_open_browser = true
+
+# Discovery settings
+discovery_interval_seconds = 30
+peer_timeout_seconds = 90
+
+# Testing settings
+ping_interval_seconds = 60
+bandwidth_test_duration = 10
+```
+
+### Platform-Specific Notes
+
+**Linux:**
+- Requires root or `CAP_NET_ADMIN` capability
+- Uses `ip route show` for routing table
+- Best tested with OpenConnect and WireGuard VPNs
+
+**Windows:**
+- Must run as Administrator
+- Uses `route print` or PowerShell `Get-NetRoute`
+
+**macOS:**
+- Requires root
+- Uses `netstat -rn` for routing table
+
+## API Documentation
+
+The tool exposes REST and WebSocket APIs for programmatic access. See [API_SPECIFICATION.md](API_SPECIFICATION.md) for complete documentation.
+
+Quick examples:
+
+```bash
+# Get routing table
+curl http://localhost:8080/api/routing-table
+
+# Trace route to destination
+curl -X POST http://localhost:8080/api/trace-route \
+  -H "Content-Type: application/json" \
+  -d '{"destination": "8.8.8.8"}'
+
+# List discovered nodes
+curl http://localhost:8080/api/nodes
+```
+
+## Documentation
+
+- **[PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md)** - Project goals, use cases, and features
+- **[TECHNICAL_ARCHITECTURE.md](TECHNICAL_ARCHITECTURE.md)** - System design and architecture
+- **[IMPLEMENTATION_ROADMAP.md](IMPLEMENTATION_ROADMAP.md)** - Development phases and milestones
+- **[API_SPECIFICATION.md](API_SPECIFICATION.md)** - Complete API reference
+
+## Development
+
+### Building
+
+```bash
+# Development build
+cargo build
+
+# Run tests
+cargo test
+
+# Run with logging
+RUST_LOG=debug cargo run
+```
+
+### Project Structure
+
 ```
 network-route-visualizer/
-├── Cargo.toml
 ├── src/
-│   ├── main.rs
-│   ├── routes/
-│   │   ├── mod.rs
-│   │   ├── parser.rs      # Platform-specific route parsing
-│   │   └── lookup.rs      # Longest prefix matching
-│   ├── discovery/
-│   │   ├── mod.rs
-│   │   ├── broadcast.rs   # UDP multicast
-│   │   └── gossip.rs      # Peer sharing
-│   ├── testing/
-│   │   ├── mod.rs
-│   │   ├── ping.rs
-│   │   └── bandwidth.rs
-│   ├── api/
-│   │   ├── mod.rs
-│   │   ├── rest.rs        # REST endpoints
-│   │   └── websocket.rs   # WebSocket handler
-│   └── web/
-│       └── static/
-│           ├── index.html
-│           ├── app.js     # three.js application
-│           └── styles.css
-└── tests/
-    ├── integration_tests.rs
-    └── fixtures/
+│   ├── main.rs              # Entry point
+│   ├── routes/              # Routing table parsing
+│   ├── discovery/           # Node discovery protocol
+│   ├── testing/             # Ping and bandwidth testing
+│   ├── api/                 # REST and WebSocket APIs
+│   └── web/static/          # Frontend (HTML, JS, CSS)
+├── tests/                   # Integration tests
+└── docs/                    # Documentation
 ```
 
-### 🔧 Key Technologies
+See [IMPLEMENTATION_ROADMAP.md](IMPLEMENTATION_ROADMAP.md) for the development plan.
 
-Refer to TECHNICAL_ARCHITECTURE.md for detailed crate choices, but here are the essentials:
+## Contributing
 
-**Rust Backend:**
-- `axum` - Web framework
-- `tokio` - Async runtime
-- `serde` / `serde_json` - Serialization
-- `tower-http` - Static file serving
+Contributions are welcome! Please:
 
-**Frontend:**
-- `three.js` - 3D visualization
-- WebSocket API - Real-time updates
-- Vanilla JavaScript (no framework needed)
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-### 📝 Development Notes
+## Use Cases
 
-**Platform Detection:**
-Use conditional compilation:
-```rust
-#[cfg(target_os = "linux")]
-fn parse_routes() -> Result<Vec<Route>> { ... }
+### VPN Troubleshooting
+You have multiple VPN connections (corporate, personal, region-specific). Quickly see which tunnel your traffic uses and why.
 
-#[cfg(target_os = "windows")]  
-fn parse_routes() -> Result<Vec<Route>> { ... }
-```
+### Network Diagnostics
+Two machines on different VPNs can't communicate. The tool shows the missing route and provides the exact command to fix it.
 
-**Route Parsing:**
-- Linux: `ip -json route show` (preferred) or parse `/proc/net/route`
-- Windows: `route print` or PowerShell `Get-NetRoute | ConvertTo-Json`
-- macOS: `netstat -rn`
+### Performance Optimization
+Compare latency between VPN path and public internet. Decide if the VPN overhead is worth it for specific destinations.
 
-See TECHNICAL_ARCHITECTURE.md for detailed parsing logic.
+### Network Visualization
+Understand your complex network topology at a glance. Perfect for presentations or documentation.
 
-**Longest Prefix Matching:**
-Implement a binary prefix tree (trie) for efficient route lookups. Critical for performance.
+## Technology Stack
 
-**WebSocket Communication:**
-Use JSON messages for all WebSocket communication. See API_SPECIFICATION.md for complete message formats.
+- **Backend**: Rust with axum web framework
+- **Frontend**: three.js for 3D visualization
+- **Communication**: REST API + WebSocket for real-time updates
+- **Discovery**: UDP multicast with gossip protocol
+- **Platform Support**: Linux, Windows, macOS
 
-### 🧪 Testing Strategy
+## Roadmap
 
-1. **Unit Tests First**: Test route parsing with real routing table examples
-2. **Integration Tests**: Test API endpoints
-3. **Manual Testing**: Visual verification of 3D scene
-4. **Cross-Platform**: Test on Linux/Windows/macOS VMs
+- [x] Core routing table visualization
+- [x] Route tracing with longest prefix match
+- [ ] Multi-node auto-discovery (in progress)
+- [ ] Performance testing (ping, bandwidth)
+- [ ] Public internet route comparison
+- [ ] Cross-platform releases
 
-### ⚠️ Important Considerations
+See [IMPLEMENTATION_ROADMAP.md](IMPLEMENTATION_ROADMAP.md) for detailed milestones.
 
-**Permissions:**
-- Reading routing tables requires elevated privileges (root/admin)
-- Document this requirement clearly
-- Consider using capabilities on Linux to avoid full root
+## License
 
-**Error Handling:**
-- Graceful degradation when commands fail
-- User-friendly error messages
-- Comprehensive logging with `tracing` crate
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-**Cross-Platform:**
-- Test early and often on all platforms
-- Don't assume routing table formats
-- VPN interface names vary wildly
+## Acknowledgments
 
-### 🎨 UI/UX Guidelines
+- Built with [Rust](https://www.rust-lang.org/)
+- 3D visualization powered by [three.js](https://threejs.org/)
+- Inspired by the need to understand complex VPN routing scenarios
 
-**3D Visualization:**
-- Local machine: Large, prominent, centered
-- VPN connections: Clearly labeled edges
-- Color coding: Green (good) → Yellow (ok) → Red (poor)
-- Interactive: Click nodes/edges for details
-- Smooth camera transitions
+## Support
 
-**Route Tracing:**
-- Highlight path with animation
-- Show interface names and gateway IPs
-- Make it obvious which VPN is being used
-
-**Connectivity Issues:**
-- Show clear error states (grayed nodes)
-- Provide copy-pasteable fix commands
-- Suggest alternative routes
-
-### 🚀 Deployment
-
-**Single Binary:**
-- Embed all static files using `include_str!` or similar
-- Cross-compile for Linux, Windows, macOS
-- Auto-open browser on startup (optional flag)
-
-**Command-Line Options:**
-```
---port <PORT>           Web server port (default: 8080)
---no-browser           Don't auto-open browser
---log-level <LEVEL>    Logging verbosity
---config <PATH>        Config file path
-```
-
-### 📚 Reference the Docs
-
-**When implementing:**
-- Route parsing → TECHNICAL_ARCHITECTURE.md "Platform-Specific Implementation"
-- API endpoints → API_SPECIFICATION.md "REST API Endpoints"
-- Discovery protocol → TECHNICAL_ARCHITECTURE.md "Discovery Protocol"
-- Data structures → TECHNICAL_ARCHITECTURE.md "Data Structures"
-- Milestones → IMPLEMENTATION_ROADMAP.md for detailed checklists
-
-### ✅ Definition of Done
-
-Phase 1 is complete when:
-- [ ] Can parse routing table on at least Linux
-- [ ] Can trace route to any destination
-- [ ] 3D visualization displays routes
-- [ ] Path highlights when destination entered
-- [ ] Basic error handling works
-- [ ] Runs as single binary
-
-Then move to Phase 2!
-
-### 💡 Tips for Success
-
-1. **Start simple**: Get Phase 1 working before adding complexity
-2. **Test incrementally**: Don't write too much before testing
-3. **Use logging**: Add tracing early for debugging
-4. **Refer to specs**: Check API_SPECIFICATION.md for exact message formats
-5. **Follow the roadmap**: It's designed to build working software at each phase
-
-### 🆘 Common Pitfalls
-
-- **Route parsing**: Formats vary wildly, handle edge cases
-- **UDP multicast**: May not cross all VPN types, have fallback
-- **Three.js performance**: Use efficient geometries, avoid creating too many objects
-- **Async Rust**: Keep boundaries clear, use structured concurrency
-- **CIDR matching**: Implement carefully, test thoroughly
+- **Issues**: [GitHub Issues](https://github.com/yourusername/network-route-visualizer/issues)
+- **Documentation**: See the `docs/` directory
+- **Discussions**: [GitHub Discussions](https://github.com/yourusername/network-route-visualizer/discussions)
 
 ---
 
-## Getting Started Command
-
-```bash
-# Initialize the project
-cargo new network-route-visualizer
-cd network-route-visualizer
-
-# Add initial dependencies to Cargo.toml (see TECHNICAL_ARCHITECTURE.md)
-
-# Start with Phase 1, Milestone 1.1 from IMPLEMENTATION_ROADMAP.md
-```
-
-Good luck! Build Phase 1 first, get it working, then iterate. The planning docs have everything you need.
+**Note**: This tool requires elevated privileges to read routing tables. Always review the code before running with sudo/admin rights.
