@@ -29,6 +29,10 @@ class RouteVisualizer {
         this.latencyData = new Map(); // nodeId -> latency_ms
         this.bandwidthTests = new Map(); // testId -> test data
         this.bandwidthResults = new Map(); // nodeId -> result
+        this.tracerouteData = null; // Current traceroute result
+        this.tracerouteHops = new Map(); // hop IP -> mesh object
+        this.tracerouteEdges = []; // Edges for traceroute path
+        this.showPublicRoutes = false; // Toggle for public route visualization
 
         this.init();
         this.setupEventListeners();
@@ -810,6 +814,299 @@ class RouteVisualizer {
         }
     }
 
+    async performTraceroute(destination) {
+        try {
+            this.showSuccess(`Performing traceroute to ${destination}...`);
+
+            const response = await fetch('/api/traceroute', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ destination: destination })
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.message || 'Failed to perform traceroute');
+            }
+
+            const result = await response.json();
+            this.tracerouteData = result;
+
+            if (result.completed && result.hops.length > 0) {
+                this.showSuccess(`Traceroute completed: ${result.hops.length} hops to ${destination}`);
+
+                // Auto-enable public routes view
+                document.getElementById('show-public-routes').checked = true;
+                this.showPublicRoutes = true;
+
+                this.visualizeTraceroute(result);
+
+                // Perform route comparison with VPN route
+                this.compareRoutes(destination, result);
+            } else if (result.error) {
+                this.showError(`Traceroute failed: ${result.error}`);
+            } else {
+                this.showError('Traceroute did not complete successfully');
+            }
+        } catch (error) {
+            this.showError(`Error performing traceroute: ${error.message}`);
+        }
+    }
+
+    visualizeTraceroute(tracerouteData) {
+        // Clear existing traceroute visualization
+        this.clearTracerouteVisualization();
+
+        if (!tracerouteData || !tracerouteData.hops || tracerouteData.hops.length === 0) {
+            return;
+        }
+
+        console.log('Visualizing traceroute with', tracerouteData.hops.length, 'hops');
+
+        // Create nodes for each hop
+        const hopNodes = [];
+        const radius = 15; // Distance from center
+        const angleStep = (Math.PI * 2) / Math.max(tracerouteData.hops.length, 8);
+
+        tracerouteData.hops.forEach((hop, index) => {
+            if (!hop.ip || hop.timed_out) {
+                // Skip timed out hops
+                hopNodes.push(null);
+                return;
+            }
+
+            // Position hops in a circle around the center
+            const angle = index * angleStep;
+            const x = Math.cos(angle) * radius;
+            const y = 2 + (index * 0.5); // Slight vertical offset
+            const z = Math.sin(angle) * radius;
+
+            const hopMesh = this.createHopNode(x, y, z, hop.ip);
+            hopMesh.userData = {
+                type: 'traceroute-hop',
+                hop: hop,
+                index: index
+            };
+
+            this.scene.add(hopMesh);
+            this.tracerouteHops.set(hop.ip, hopMesh);
+            hopNodes.push(hopMesh);
+
+            // Add label
+            const avgRtt = hop.rtt_ms.filter(r => r !== null).reduce((a, b) => a + b, 0) /
+                          hop.rtt_ms.filter(r => r !== null).length || 0;
+            const label = avgRtt > 0 ? `${hop.ip}\n${avgRtt.toFixed(1)}ms` : hop.ip;
+            this.addLabel(hopMesh, label, `hop-${hop.ip}`);
+        });
+
+        // Create edges connecting the hops
+        const localNode = this.nodes.get('local');
+        if (localNode) {
+            // Connect local node to first hop
+            const firstHop = hopNodes.find(h => h !== null);
+            if (firstHop) {
+                const edge = this.createEdge(
+                    localNode.position,
+                    firstHop.position,
+                    0xef4444, // Red color for public routes
+                    true      // Dashed line
+                );
+                edge.userData = { type: 'traceroute-edge' };
+                this.scene.add(edge);
+                this.tracerouteEdges.push(edge);
+            }
+        }
+
+        // Connect consecutive hops
+        for (let i = 0; i < hopNodes.length - 1; i++) {
+            const currentHop = hopNodes[i];
+            const nextHop = hopNodes[i + 1];
+
+            if (currentHop && nextHop) {
+                const edge = this.createEdge(
+                    currentHop.position,
+                    nextHop.position,
+                    0xef4444, // Red color for public routes
+                    true      // Dashed line
+                );
+                edge.userData = { type: 'traceroute-edge' };
+                this.scene.add(edge);
+                this.tracerouteEdges.push(edge);
+            }
+        }
+
+        this.updateTracerouteVisualization();
+    }
+
+    createHopNode(x, y, z, ip) {
+        // Use octahedron for public internet hops
+        const geometry = new THREE.OctahedronGeometry(1, 0);
+        const material = new THREE.MeshStandardMaterial({
+            color: 0xef4444, // Red color for public routes
+            emissive: 0xef4444,
+            emissiveIntensity: 0.3,
+            metalness: 0.5,
+            roughness: 0.4
+        });
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.position.set(x, y, z);
+        return mesh;
+    }
+
+    updateTracerouteVisualization() {
+        // Show or hide traceroute visualization based on toggle
+        const visible = this.showPublicRoutes;
+
+        this.tracerouteHops.forEach((hopMesh) => {
+            hopMesh.visible = visible;
+        });
+
+        this.tracerouteEdges.forEach((edge) => {
+            edge.visible = visible;
+        });
+
+        // Update labels visibility
+        this.tracerouteHops.forEach((hopMesh, ip) => {
+            const label = this.labels.get(`hop-${ip}`);
+            if (label) {
+                label.element.style.display = visible ? 'block' : 'none';
+            }
+        });
+    }
+
+    clearTracerouteVisualization() {
+        // Remove all traceroute hops
+        this.tracerouteHops.forEach((hopMesh, ip) => {
+            this.scene.remove(hopMesh);
+            const label = this.labels.get(`hop-${ip}`);
+            if (label) {
+                this.labels.delete(`hop-${ip}`);
+            }
+        });
+        this.tracerouteHops.clear();
+
+        // Remove all traceroute edges
+        this.tracerouteEdges.forEach((edge) => {
+            this.scene.remove(edge);
+        });
+        this.tracerouteEdges = [];
+    }
+
+    async compareRoutes(destination, tracerouteData) {
+        // Get VPN route information
+        let vpnRoute = null;
+        let vpnLatency = null;
+
+        try {
+            const traceResponse = await fetch('/api/trace-route', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ destination: destination })
+            });
+
+            if (traceResponse.ok) {
+                const traceResult = await traceResponse.json();
+                vpnRoute = traceResult.matched_route;
+            }
+        } catch (error) {
+            console.error('Error getting VPN route:', error);
+        }
+
+        // Calculate public route metrics
+        const publicHops = tracerouteData.hops.filter(h => !h.timed_out && h.ip);
+        const publicHopCount = publicHops.length;
+
+        // Calculate average latency for public route
+        let publicLatency = 0;
+        if (publicHops.length > 0) {
+            const lastHop = publicHops[publicHops.length - 1];
+            const rttValues = lastHop.rtt_ms.filter(r => r !== null);
+            if (rttValues.length > 0) {
+                publicLatency = rttValues.reduce((a, b) => a + b, 0) / rttValues.length;
+            }
+        }
+
+        // Try to get VPN latency from latency data if available
+        if (vpnRoute && vpnRoute.gateway) {
+            // Look for latency to nodes that might be the destination
+            // This is a simplified approach - in a real implementation,
+            // we might need to ping the destination through the VPN
+        }
+
+        // Build comparison panel
+        const comparisonDiv = document.getElementById('route-comparison');
+        const contentDiv = document.getElementById('comparison-content');
+
+        let comparisonHTML = '<div class="comparison-table">';
+        comparisonHTML += '<table style="width: 100%; border-collapse: collapse;">';
+        comparisonHTML += '<tr><th style="text-align: left; padding: 8px; border-bottom: 1px solid #333;"></th>';
+        comparisonHTML += '<th style="text-align: left; padding: 8px; border-bottom: 1px solid #333;">VPN Route</th>';
+        comparisonHTML += '<th style="text-align: left; padding: 8px; border-bottom: 1px solid #333;">Public Route</th></tr>';
+
+        // Hop count comparison
+        comparisonHTML += '<tr>';
+        comparisonHTML += '<td style="padding: 8px; border-bottom: 1px solid #222;"><strong>Hop Count</strong></td>';
+        comparisonHTML += `<td style="padding: 8px; border-bottom: 1px solid #222;">${vpnRoute ? '1 (via ' + vpnRoute.interface + ')' : 'N/A'}</td>`;
+        comparisonHTML += `<td style="padding: 8px; border-bottom: 1px solid #222;">${publicHopCount}</td>`;
+        comparisonHTML += '</tr>';
+
+        // Latency comparison
+        comparisonHTML += '<tr>';
+        comparisonHTML += '<td style="padding: 8px; border-bottom: 1px solid #222;"><strong>Latency</strong></td>';
+        comparisonHTML += `<td style="padding: 8px; border-bottom: 1px solid #222;">${vpnLatency !== null ? vpnLatency.toFixed(1) + ' ms' : 'Unknown'}</td>`;
+        comparisonHTML += `<td style="padding: 8px; border-bottom: 1px solid #222;">${publicLatency > 0 ? publicLatency.toFixed(1) + ' ms' : 'Unknown'}</td>`;
+        comparisonHTML += '</tr>';
+
+        // Gateway/Interface
+        comparisonHTML += '<tr>';
+        comparisonHTML += '<td style="padding: 8px; border-bottom: 1px solid #222;"><strong>Gateway</strong></td>';
+        comparisonHTML += `<td style="padding: 8px; border-bottom: 1px solid #222;">${vpnRoute ? (vpnRoute.gateway || 'Direct') : 'N/A'}</td>`;
+        comparisonHTML += `<td style="padding: 8px; border-bottom: 1px solid #222;">${publicHops.length > 0 ? publicHops[0].ip : 'N/A'}</td>`;
+        comparisonHTML += '</tr>';
+
+        // Route type
+        comparisonHTML += '<tr>';
+        comparisonHTML += '<td style="padding: 8px;"><strong>Route Type</strong></td>';
+        comparisonHTML += `<td style="padding: 8px;">${vpnRoute ? (vpnRoute.interface.includes('tun') || vpnRoute.interface.includes('wg') ? 'VPN Tunnel' : 'Direct') : 'N/A'}</td>`;
+        comparisonHTML += '<td style="padding: 8px;">Public Internet</td>';
+        comparisonHTML += '</tr>';
+
+        comparisonHTML += '</table>';
+
+        // Recommendation
+        comparisonHTML += '<div style="margin-top: 16px; padding: 12px; background: rgba(59, 130, 246, 0.1); border-left: 3px solid #3b82f6; border-radius: 4px;">';
+        comparisonHTML += '<strong>Recommendation:</strong><br>';
+
+        if (vpnRoute) {
+            if (vpnRoute.interface.includes('tun') || vpnRoute.interface.includes('wg')) {
+                comparisonHTML += 'Traffic is routed through VPN tunnel (' + vpnRoute.interface + '). ';
+                if (vpnLatency !== null && publicLatency > 0) {
+                    if (vpnLatency < publicLatency) {
+                        comparisonHTML += 'VPN route is faster! 🚀';
+                    } else {
+                        comparisonHTML += 'Public route may be faster, but VPN provides security. 🔒';
+                    }
+                } else {
+                    comparisonHTML += 'VPN provides encryption and privacy. 🔒';
+                }
+            } else {
+                comparisonHTML += 'Using direct route (not through VPN). Consider using VPN for security. 🔓';
+            }
+        } else {
+            comparisonHTML += 'No VPN route found. Traffic goes through public internet. 🌐';
+        }
+
+        comparisonHTML += '</div>';
+        comparisonHTML += '</div>';
+
+        contentDiv.innerHTML = comparisonHTML;
+        comparisonDiv.style.display = 'block';
+    }
+
     onMouseMove(event) {
         const container = document.getElementById('canvas-container');
         const rect = container.getBoundingClientRect();
@@ -820,7 +1117,8 @@ class RouteVisualizer {
         this.raycaster.setFromCamera(this.mouse, this.camera);
 
         const nodeArray = Array.from(this.nodes.values());
-        const intersects = this.raycaster.intersectObjects(nodeArray, true);
+        const hopArray = Array.from(this.tracerouteHops.values());
+        const intersects = this.raycaster.intersectObjects([...nodeArray, ...hopArray], true);
 
         if (this.hoveredObject && (!intersects.length || intersects[0].object !== this.hoveredObject)) {
             if (this.hoveredObject !== this.selectedObject) {
@@ -846,6 +1144,13 @@ class RouteVisualizer {
                     this.showTooltip({
                         info: `${object.userData.node.hostname} (${object.userData.node.status})`
                     }, event.clientX, event.clientY);
+                } else if (object.userData && object.userData.hop) {
+                    const hop = object.userData.hop;
+                    const avgRtt = hop.rtt_ms.filter(r => r !== null).reduce((a, b) => a + b, 0) /
+                                  hop.rtt_ms.filter(r => r !== null).length || 0;
+                    this.showTooltip({
+                        info: `Hop ${hop.hop_number}: ${hop.ip}\nRTT: ${avgRtt.toFixed(1)}ms`
+                    }, event.clientX, event.clientY);
                 } else if (object.userData && object.userData.name) {
                     this.showTooltip({ info: object.userData.info }, event.clientX, event.clientY);
                 }
@@ -865,7 +1170,8 @@ class RouteVisualizer {
         this.raycaster.setFromCamera(this.mouse, this.camera);
 
         const nodeArray = Array.from(this.nodes.values());
-        const intersects = this.raycaster.intersectObjects(nodeArray, true);
+        const hopArray = Array.from(this.tracerouteHops.values());
+        const intersects = this.raycaster.intersectObjects([...nodeArray, ...hopArray], true);
 
         if (intersects.length > 0) {
             const object = intersects[0].object;
@@ -888,7 +1194,8 @@ class RouteVisualizer {
         this.raycaster.setFromCamera(this.mouse, this.camera);
 
         const nodeArray = Array.from(this.nodes.values());
-        const intersects = this.raycaster.intersectObjects(nodeArray, true);
+        const hopArray = Array.from(this.tracerouteHops.values());
+        const intersects = this.raycaster.intersectObjects([...nodeArray, ...hopArray], true);
 
         if (intersects.length > 0) {
             this.focusOnObject(intersects[0].object);
@@ -945,6 +1252,20 @@ class RouteVisualizer {
         document.getElementById('refresh-btn').addEventListener('click', () => {
             this.loadRoutingTable();
             this.loadDiscoveredNodes();
+        });
+
+        document.getElementById('traceroute-btn').addEventListener('click', () => {
+            const destination = document.getElementById('destination').value.trim();
+            if (destination) {
+                this.performTraceroute(destination);
+            } else {
+                this.showError('Please enter a destination for traceroute');
+            }
+        });
+
+        document.getElementById('show-public-routes').addEventListener('change', (e) => {
+            this.showPublicRoutes = e.target.checked;
+            this.updateTracerouteVisualization();
         });
 
         document.getElementById('destination').addEventListener('keypress', (e) => {

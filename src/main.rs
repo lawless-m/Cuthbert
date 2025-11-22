@@ -73,6 +73,7 @@ async fn main() {
     tracing::info!("API endpoints:");
     tracing::info!("  GET  http://{}/api/routing-table", addr);
     tracing::info!("  POST http://{}/api/trace-route", addr);
+    tracing::info!("  POST http://{}/api/traceroute", addr);
     tracing::info!("  GET  http://{}/api/nodes", addr);
     tracing::info!("  WS   ws://{}/ws", addr);
     tracing::info!("Web UI: http://{}/static/index.html", addr);

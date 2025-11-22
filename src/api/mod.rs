@@ -22,3 +22,10 @@ pub struct ErrorResponse {
     pub error: String,
     pub message: String,
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TracerouteRequest {
+    pub destination: String,
+}
+
+pub use crate::discovery::traceroute::TracerouteResult;

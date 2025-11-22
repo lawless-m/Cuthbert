@@ -16,9 +16,20 @@
                 <button id="trace-btn">Trace</button>
                 <button id="refresh-btn">Refresh Routes</button>
             </div>
+            <div class="control-group">
+                <label>
+                    <input type="checkbox" id="show-public-routes">
+                    Show Public Routes
+                </label>
+                <button id="traceroute-btn">Traceroute</button>
+            </div>
             <div id="info">
                 <h3>Route Information</h3>
                 <div id="route-details"></div>
+            </div>
+            <div id="route-comparison" style="display: none;">
+                <h3>Route Comparison</h3>
+                <div id="comparison-content"></div>
             </div>
             <div id="discovered-nodes">
                 <h3>Discovered Nodes</h3>
@@ -49,6 +60,14 @@
                 <div class="legend-item">
                     <span class="legend-color" style="background: #6b7280;"></span>
                     <span>Discovered Nodes - Offline (Dodecahedron)</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-color" style="background: #ef4444;"></span>
+                    <span>Public Internet Hops (Octahedron)</span>
+                </div>
+                <div class="legend-item">
+                    <span style="border-bottom: 2px dashed #ef4444; width: 20px; display: inline-block;"></span>
+                    <span>Public Routes (Dashed)</span>
                 </div>
             </div>
             <div id="shortcuts">
