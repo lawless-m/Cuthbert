@@ -1,15 +1,20 @@
 // UDP multicast broadcast for node discovery
 // Also supports unicast to WireGuard peers (since multicast doesn't traverse WireGuard tunnels)
+// and unicast to VPN peers discovered via subnet scanning (for OpenConnect, OpenVPN, etc.)
 
 use serde::{Deserialize, Serialize};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 use tokio::net::UdpSocket;
+use tokio::sync::RwLock;
 
+use super::vpn_scan;
 use super::wireguard;
 
 const MULTICAST_ADDR: Ipv4Addr = Ipv4Addr::new(239, 255, 42, 1);
 const MULTICAST_PORT: u16 = 5678;
+// VPN subnet scan interval: every N announcements (N * 30s = 5 minutes at N=10)
+const VPN_SCAN_INTERVAL: u32 = 10;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "type")]
@@ -58,6 +63,8 @@ impl DiscoveryService {
 
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(30));
+            let mut vpn_scan_counter: u32 = 0;
+            let vpn_peer_cache: Arc<RwLock<Vec<IpAddr>>> = Arc::new(RwLock::new(Vec::new()));
 
             loop {
                 interval.tick().await;
@@ -103,6 +110,37 @@ impl DiscoveryService {
                                     peer_addr,
                                     e
                                 );
+                            }
+                        }
+                    }
+
+                    // Periodically scan VPN subnets for peers (OpenConnect, OpenVPN, etc.)
+                    // This is more expensive than WireGuard lookup, so we do it less frequently
+                    vpn_scan_counter += 1;
+                    if vpn_scan_counter >= VPN_SCAN_INTERVAL {
+                        vpn_scan_counter = 0;
+
+                        // Spawn scan in background to not block announcements
+                        let cache = vpn_peer_cache.clone();
+                        tokio::spawn(async move {
+                            tracing::debug!("Starting VPN subnet scan for peer discovery");
+                            let peers = vpn_scan::get_vpn_peer_ips().await;
+                            let mut cache_guard = cache.write().await;
+                            *cache_guard = peers;
+                        });
+                    }
+
+                    // Send unicast to cached VPN peers
+                    let vpn_peers = vpn_peer_cache.read().await;
+                    if !vpn_peers.is_empty() {
+                        tracing::debug!(
+                            "Sending unicast discovery to {} VPN peers",
+                            vpn_peers.len()
+                        );
+                        for &peer_ip in vpn_peers.iter() {
+                            let peer_addr = SocketAddr::new(peer_ip, MULTICAST_PORT);
+                            if let Err(e) = socket.send_to(json.as_bytes(), peer_addr).await {
+                                tracing::trace!("Failed to send to VPN peer {}: {}", peer_addr, e);
                             }
                         }
                     }
