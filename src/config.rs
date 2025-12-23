@@ -57,7 +57,7 @@ pub struct CliArgs {
 }
 
 /// Configuration file structure (TOML format)
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ConfigFile {
     /// Server settings
     #[serde(default)]
@@ -221,17 +221,6 @@ impl Default for LoggingConfig {
     }
 }
 
-impl Default for ConfigFile {
-    fn default() -> Self {
-        ConfigFile {
-            server: ServerConfig::default(),
-            discovery: DiscoveryConfig::default(),
-            testing: TestingConfig::default(),
-            logging: LoggingConfig::default(),
-        }
-    }
-}
-
 /// Merged configuration from all sources
 #[derive(Debug, Clone)]
 pub struct Config {
@@ -246,7 +235,6 @@ pub struct Config {
     pub multicast_port: u16,
     pub ping_enabled: bool,
     pub ping_interval: u64,
-    pub bandwidth_duration: u64,
     pub bandwidth_port: u16,
 }
 
@@ -296,7 +284,6 @@ impl Config {
 
         let ping_enabled = !cli_args.no_ping && config_file.testing.ping_enabled;
         let ping_interval = cli_args.ping_interval;
-        let bandwidth_duration = cli_args.bandwidth_duration;
         let bandwidth_port = cli_args.bandwidth_port;
 
         Ok(Config {
@@ -311,15 +298,8 @@ impl Config {
             multicast_port,
             ping_enabled,
             ping_interval,
-            bandwidth_duration,
             bandwidth_port,
         })
-    }
-
-    /// Generate example configuration file
-    pub fn generate_example_config() -> String {
-        let example = ConfigFile::default();
-        toml::to_string_pretty(&example).unwrap_or_default()
     }
 }
 

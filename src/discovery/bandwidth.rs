@@ -267,9 +267,4 @@ impl BandwidthService {
         let mut tests = self.active_tests.write().await;
         tests.remove(test_id);
     }
-
-    pub async fn get_active_tests(&self) -> Vec<BandwidthTestProgress> {
-        let tests = self.active_tests.read().await;
-        tests.values().cloned().collect()
-    }
 }

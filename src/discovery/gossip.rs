@@ -29,10 +29,4 @@ impl GossipService {
             }
         });
     }
-
-    pub async fn request_peer_list(&self, _node_id: &str) -> Result<Vec<super::NodeInfo>, String> {
-        // In a real implementation, this would make an HTTP request to the remote node
-        // For now, return empty list
-        Ok(vec![])
-    }
 }

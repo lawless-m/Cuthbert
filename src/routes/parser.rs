@@ -102,14 +102,10 @@ fn parse_ip_route(output: &str) -> Result<RoutingTable, String> {
 
     for line in output.lines() {
         let parts: Vec<&str> = line.split_whitespace().collect();
-        if parts.is_empty() {
-            continue;
-        }
-
-        let destination = if parts[0] == "default" {
-            "0.0.0.0/0".to_string()
-        } else {
-            parts[0].to_string()
+        let destination = match parts.first() {
+            Some(&"default") => "0.0.0.0/0".to_string(),
+            Some(dest) => dest.to_string(),
+            None => continue,
         };
 
         let mut gateway = None;
@@ -119,26 +115,26 @@ fn parse_ip_route(output: &str) -> Result<RoutingTable, String> {
 
         let mut i = 1;
         while i < parts.len() {
-            match parts[i] {
-                "via" => {
-                    if i + 1 < parts.len() {
-                        gateway = parts[i + 1].parse().ok();
+            match parts.get(i).copied() {
+                Some("via") => {
+                    if let Some(gw) = parts.get(i + 1) {
+                        gateway = gw.parse().ok();
                         i += 2;
                     } else {
                         i += 1;
                     }
                 }
-                "dev" => {
-                    if i + 1 < parts.len() {
-                        interface = parts[i + 1].to_string();
+                Some("dev") => {
+                    if let Some(iface) = parts.get(i + 1) {
+                        interface = iface.to_string();
                         i += 2;
                     } else {
                         i += 1;
                     }
                 }
-                "metric" => {
-                    if i + 1 < parts.len() {
-                        metric = parts[i + 1].parse().unwrap_or(0);
+                Some("metric") => {
+                    if let Some(m) = parts.get(i + 1) {
+                        metric = m.parse().unwrap_or(0);
                         i += 2;
                     } else {
                         i += 1;

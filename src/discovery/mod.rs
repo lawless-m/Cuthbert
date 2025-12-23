@@ -71,14 +71,6 @@ impl PeerRegistry {
         nodes.values().cloned().collect()
     }
 
-    pub async fn update_node_status(&self, node_id: &str, status: NodeStatus) {
-        let mut nodes = self.nodes.write().await;
-        if let Some(node) = nodes.get_mut(node_id) {
-            node.status = status;
-            node.last_seen = chrono::Utc::now().to_rfc3339();
-        }
-    }
-
     pub async fn cleanup_stale_nodes(&self, timeout_seconds: u64) {
         let mut nodes = self.nodes.write().await;
         let now = chrono::Utc::now();

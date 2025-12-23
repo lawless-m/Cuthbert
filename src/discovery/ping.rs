@@ -189,14 +189,4 @@ impl PingService {
             }
         }
     }
-
-    pub async fn get_latency_history(&self, node_id: &str) -> Option<LatencyHistory> {
-        let histories = self.latency_histories.read().await;
-        histories.get(node_id).cloned()
-    }
-
-    pub async fn get_all_latencies(&self) -> Vec<LatencyHistory> {
-        let histories = self.latency_histories.read().await;
-        histories.values().cloned().collect()
-    }
 }

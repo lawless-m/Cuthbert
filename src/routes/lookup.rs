@@ -43,13 +43,16 @@ fn matches_cidr(cidr: &str, ip: IpAddr) -> Option<u8> {
 
     // Parse CIDR notation
     let parts: Vec<&str> = cidr.split('/').collect();
-    if parts.is_empty() {
-        return None;
-    }
 
-    let network_ip: IpAddr = parts[0].parse().ok()?;
-    let prefix_len: u8 = if parts.len() > 1 {
-        parts[1].parse().ok()?
+    let (network_str, prefix_str) = match parts.as_slice() {
+        [network] => (network, None),
+        [network, prefix, ..] => (network, Some(prefix)),
+        [] => return None,
+    };
+
+    let network_ip: IpAddr = network_str.parse().ok()?;
+    let prefix_len: u8 = if let Some(prefix) = prefix_str {
+        prefix.parse().ok()?
     } else {
         // No prefix length specified, assume /32 for IPv4 or /128 for IPv6
         match network_ip {

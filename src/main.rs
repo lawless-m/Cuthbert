@@ -1,8 +1,13 @@
+// Defensive programming lints
+#![deny(clippy::indexing_slicing)]
+#![deny(clippy::fallible_impl_from)]
+#![warn(clippy::wildcard_enum_match_arm)]
+#![warn(clippy::wildcard_imports)]
+
 mod routes;
 mod api;
 mod discovery;
 mod config;
-mod error;
 
 use tower_http::services::ServeDir;
 use std::net::SocketAddr;

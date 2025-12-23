@@ -1,5 +1,9 @@
 // Network Route Visualizer - Enhanced Three.js Frontend (Phase 3)
 
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+
 class RouteVisualizer {
     constructor() {
         this.scene = null;
@@ -67,7 +71,7 @@ class RouteVisualizer {
         this.renderer.setPixelRatio(window.devicePixelRatio);
 
         // Create CSS2D renderer for labels
-        this.labelRenderer = new THREE.CSS2DRenderer();
+        this.labelRenderer = new CSS2DRenderer();
         this.labelRenderer.setSize(container.clientWidth, container.clientHeight);
         this.labelRenderer.domElement.style.position = 'absolute';
         this.labelRenderer.domElement.style.top = '0';
@@ -96,7 +100,7 @@ class RouteVisualizer {
         this.scene.add(gridHelper);
 
         // Add orbit controls
-        this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
+        this.controls = new OrbitControls(this.camera, this.renderer.domElement);
         this.controls.enableDamping = true;
         this.controls.dampingFactor = 0.05;
         this.controls.minDistance = 5;
@@ -292,7 +296,7 @@ class RouteVisualizer {
         labelDiv.style.padding = '2px 4px';
         labelDiv.style.borderRadius = '3px';
 
-        const label = new THREE.CSS2DObject(labelDiv);
+        const label = new CSS2DObject(labelDiv);
         label.position.set(midX, midY, midZ);
         edge.add(label);
 
@@ -671,7 +675,7 @@ class RouteVisualizer {
         labelDiv.style.background = 'rgba(0, 0, 0, 0.7)';
         labelDiv.style.borderRadius = '3px';
 
-        const label = new THREE.CSS2DObject(labelDiv);
+        const label = new CSS2DObject(labelDiv);
         label.position.set(0, 2, 0);
         object.add(label);
         this.labels.set(id, label);

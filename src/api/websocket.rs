@@ -10,9 +10,7 @@ use axum::{
 use futures::{sink::SinkExt, stream::StreamExt};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use tokio::sync::broadcast;
 
-use crate::routes::{parser, lookup::RouteEngine};
 use super::rest::AppState;
 
 // WebSocket message types from client to server
@@ -44,32 +42,9 @@ pub enum ClientMessage {
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "type")]
 pub enum ServerMessage {
-    #[serde(rename = "node_discovered")]
-    NodeDiscovered {
-        node: crate::discovery::NodeInfo,
-    },
-    #[serde(rename = "node_status_changed")]
-    NodeStatusChanged {
-        node_id: String,
-        status: String,
-        reason: Option<String>,
-    },
     #[serde(rename = "latency_update")]
     LatencyUpdate {
         connections: Vec<Connection>,
-    },
-    #[serde(rename = "routing_table_changed")]
-    RoutingTableChanged {
-        node_id: String,
-        routes_added: Vec<crate::routes::Route>,
-        routes_removed: Vec<String>,
-    },
-    #[serde(rename = "trace_route_result")]
-    TraceRouteResult {
-        request_id: String,
-        destination: String,
-        resolved_ip: String,
-        matched_route: Option<crate::routes::Route>,
     },
     #[serde(rename = "error")]
     Error {

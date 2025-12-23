@@ -107,8 +107,9 @@ impl DiscoveryService {
             loop {
                 match socket.recv_from(&mut buf).await {
                     Ok((len, _addr)) => {
-                        if let Ok(json_str) = std::str::from_utf8(&buf[..len]) {
-                            if let Ok(msg) = serde_json::from_str::<DiscoveryMessage>(json_str) {
+                        if let Some(slice) = buf.get(..len) {
+                            if let Ok(json_str) = std::str::from_utf8(slice) {
+                                if let Ok(msg) = serde_json::from_str::<DiscoveryMessage>(json_str) {
                                 match msg {
                                     DiscoveryMessage::Announce {
                                         node_id,
@@ -140,6 +141,7 @@ impl DiscoveryService {
                                 }
                             }
                         }
+                        }
                     }
                     Err(e) => {
                         tracing::error!("Error receiving discovery message: {}", e);
@@ -147,24 +149,6 @@ impl DiscoveryService {
                 }
             }
         });
-
-        Ok(())
-    }
-
-    pub async fn send_goodbye(&self) -> Result<(), Box<dyn std::error::Error>> {
-        let socket = UdpSocket::bind("0.0.0.0:0").await?;
-        socket.set_broadcast(true)?;
-
-        let multicast_addr = SocketAddr::new(IpAddr::V4(MULTICAST_ADDR), MULTICAST_PORT);
-
-        let goodbye = DiscoveryMessage::Goodbye {
-            node_id: self.node_id.clone(),
-            reason: "shutdown".to_string(),
-        };
-
-        if let Ok(json) = serde_json::to_string(&goodbye) {
-            socket.send_to(json.as_bytes(), multicast_addr).await?;
-        }
 
         Ok(())
     }

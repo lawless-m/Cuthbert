@@ -170,17 +170,14 @@ impl TracerouteExecutor {
             // Parse line format: " 1  192.168.1.1  1.234 ms  1.456 ms  1.678 ms"
             // or: " 1  * * *" (timeout)
             let parts: Vec<&str> = line.split_whitespace().collect();
-            if parts.is_empty() {
-                continue;
-            }
 
-            let hop_number: u32 = match parts[0].parse() {
-                Ok(n) => n,
-                Err(_) => continue, // Skip malformed lines
+            let hop_number: u32 = match parts.first().and_then(|s| s.parse().ok()) {
+                Some(n) => n,
+                None => continue, // Skip malformed lines
             };
 
             // Check for timeout (* * *)
-            if parts.len() >= 2 && parts[1] == "*" {
+            if parts.get(1).copied() == Some("*") {
                 hops.push(TracerouteHop {
                     hop_number,
                     ip: None,
@@ -192,24 +189,24 @@ impl TracerouteExecutor {
             }
 
             // Extract IP address (second field)
-            let ip = if parts.len() >= 2 {
-                Some(parts[1].to_string())
-            } else {
-                None
-            };
+            let ip = parts.get(1).map(|s| s.to_string());
 
             // Extract RTT values (every other field after IP, before "ms")
             let mut rtt_values = Vec::new();
             let mut i = 2;
             while i < parts.len() {
-                if let Ok(rtt) = parts[i].parse::<f64>() {
-                    rtt_values.push(Some(rtt));
-                    i += 2; // Skip "ms"
-                } else if parts[i] == "*" {
-                    rtt_values.push(None);
-                    i += 1;
+                if let Some(part) = parts.get(i) {
+                    if let Ok(rtt) = part.parse::<f64>() {
+                        rtt_values.push(Some(rtt));
+                        i += 2; // Skip "ms"
+                    } else if *part == "*" {
+                        rtt_values.push(None);
+                        i += 1;
+                    } else {
+                        i += 1;
+                    }
                 } else {
-                    i += 1;
+                    break;
                 }
             }
 
@@ -320,15 +317,6 @@ impl TracerouteExecutor {
         // Format: "traceroute to 8.8.8.8 (8.8.8.8), 30 hops max, 60 byte packets"
         //  1  192.168.1.1  1.234 ms  1.456 ms  1.678 ms
         Self::parse_linux_traceroute(output, destination)
-    }
-
-    /// Perform optional reverse DNS lookup for an IP address
-    /// This is done asynchronously and returns None on failure
-    /// Note: Currently not implemented, reserved for future enhancement
-    pub async fn reverse_dns_lookup(_ip: &str) -> Option<String> {
-        // TODO: Implement reverse DNS lookup
-        // Can use external DNS resolver library or system calls
-        None
     }
 }
 
