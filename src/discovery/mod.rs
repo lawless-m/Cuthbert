@@ -1,10 +1,11 @@
 // Discovery module - node discovery and peer management
 
+pub mod bandwidth;
 pub mod broadcast;
 pub mod gossip;
 pub mod ping;
-pub mod bandwidth;
 pub mod traceroute;
+pub mod wireguard;
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

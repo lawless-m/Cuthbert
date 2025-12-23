@@ -49,11 +49,9 @@ impl TracerouteExecutor {
     /// This is a blocking operation that spawns a subprocess.
     pub async fn traceroute(destination: IpAddr) -> Result<TracerouteResult, String> {
         // Execute in blocking task to avoid blocking async runtime
-        task::spawn_blocking(move || {
-            Self::execute_traceroute_blocking(destination)
-        })
-        .await
-        .map_err(|e| format!("Task join error: {}", e))?
+        task::spawn_blocking(move || Self::execute_traceroute_blocking(destination))
+            .await
+            .map_err(|e| format!("Task join error: {}", e))?
     }
 
     fn execute_traceroute_blocking(destination: IpAddr) -> Result<TracerouteResult, String> {
@@ -80,12 +78,12 @@ impl TracerouteExecutor {
 
         // Try traceroute -n (no DNS resolution) first
         let output = Command::new("traceroute")
-            .arg("-n")  // No DNS resolution (faster)
-            .arg("-q")  // 3 queries per hop (default)
+            .arg("-n") // No DNS resolution (faster)
+            .arg("-q") // 3 queries per hop (default)
             .arg("3")
-            .arg("-w")  // Wait time
-            .arg("2")   // 2 seconds
-            .arg("-m")  // Max hops
+            .arg("-w") // Wait time
+            .arg("2") // 2 seconds
+            .arg("-m") // Max hops
             .arg("30")
             .arg(destination)
             .output()
@@ -108,10 +106,10 @@ impl TracerouteExecutor {
 
         // Windows uses tracert with -d flag for no DNS resolution
         let output = Command::new("tracert")
-            .arg("-d")  // No DNS resolution
-            .arg("-h")  // Max hops
+            .arg("-d") // No DNS resolution
+            .arg("-h") // Max hops
             .arg("30")
-            .arg("-w")  // Timeout per reply (milliseconds)
+            .arg("-w") // Timeout per reply (milliseconds)
             .arg("2000")
             .arg(destination)
             .output()
@@ -134,12 +132,12 @@ impl TracerouteExecutor {
 
         // macOS traceroute with -n for no DNS resolution
         let output = Command::new("traceroute")
-            .arg("-n")  // No DNS resolution
-            .arg("-q")  // Queries per hop
+            .arg("-n") // No DNS resolution
+            .arg("-q") // Queries per hop
             .arg("3")
-            .arg("-w")  // Wait time
+            .arg("-w") // Wait time
             .arg("2")
-            .arg("-m")  // Max hops
+            .arg("-m") // Max hops
             .arg("30")
             .arg(destination)
             .output()
@@ -229,7 +227,10 @@ impl TracerouteExecutor {
     }
 
     #[cfg(target_os = "windows")]
-    fn parse_windows_traceroute(output: &str, destination: &str) -> Result<TracerouteResult, String> {
+    fn parse_windows_traceroute(
+        output: &str,
+        destination: &str,
+    ) -> Result<TracerouteResult, String> {
         let mut hops = Vec::new();
         let mut in_trace_section = false;
 

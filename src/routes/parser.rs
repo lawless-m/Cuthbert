@@ -47,33 +47,39 @@ fn get_routing_table_linux() -> Result<RoutingTable, String> {
 #[cfg(target_os = "linux")]
 fn parse_ip_json(json_str: &str) -> Result<RoutingTable, String> {
     // Parse JSON output from `ip -json route show`
-    let routes: Vec<serde_json::Value> = serde_json::from_str(json_str)
-        .map_err(|e| format!("Failed to parse JSON: {}", e))?;
+    let routes: Vec<serde_json::Value> =
+        serde_json::from_str(json_str).map_err(|e| format!("Failed to parse JSON: {}", e))?;
 
     let mut parsed_routes = Vec::new();
 
     for route in routes {
-        let destination = route.get("dst")
+        let destination = route
+            .get("dst")
             .and_then(|v| v.as_str())
             .unwrap_or("default")
             .to_string();
 
-        let gateway = route.get("gateway")
+        let gateway = route
+            .get("gateway")
             .and_then(|v| v.as_str())
             .and_then(|s| s.parse().ok());
 
-        let interface = route.get("dev")
+        let interface = route
+            .get("dev")
             .and_then(|v| v.as_str())
             .unwrap_or("unknown")
             .to_string();
 
-        let metric = route.get("metric")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0) as u32;
+        let metric = route.get("metric").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
 
-        let flags = route.get("flags")
+        let flags = route
+            .get("flags")
             .and_then(|v| v.as_array())
-            .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str().map(String::from))
+                    .collect()
+            })
             .unwrap_or_else(Vec::new);
 
         parsed_routes.push(Route {

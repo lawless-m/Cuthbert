@@ -1,14 +1,14 @@
 // Routes module - handles routing table parsing and route lookups
 
-pub mod parser;
 pub mod lookup;
+pub mod parser;
 
 use serde::{Deserialize, Serialize};
 use std::net::IpAddr;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Route {
-    pub destination: String,  // CIDR notation
+    pub destination: String, // CIDR notation
     pub gateway: Option<IpAddr>,
     pub interface: String,
     pub metric: u32,

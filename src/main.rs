@@ -4,19 +4,22 @@
 #![warn(clippy::wildcard_enum_match_arm)]
 #![warn(clippy::wildcard_imports)]
 
-mod routes;
 mod api;
-mod discovery;
 mod config;
+mod discovery;
+mod routes;
 
-use tower_http::services::ServeDir;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use tower_http::services::ServeDir;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use api::rest::AppState;
-use discovery::{PeerRegistry, broadcast::DiscoveryService, gossip::GossipService, ping::PingService, bandwidth::BandwidthService};
 use config::Config;
+use discovery::{
+    bandwidth::BandwidthService, broadcast::DiscoveryService, gossip::GossipService,
+    ping::PingService, PeerRegistry,
+};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -30,17 +33,18 @@ async fn main() -> anyhow::Result<()> {
                 .with_target(true)
                 .with_thread_ids(false)
                 .with_file(true)
-                .with_line_number(true)
+                .with_line_number(true),
         )
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| {
-                    tracing_subscriber::EnvFilter::new(config.log_level.as_str())
-                })
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(config.log_level.as_str())),
         )
         .init();
 
-    tracing::info!("Network Route Visualizer v{} starting...", env!("CARGO_PKG_VERSION"));
+    tracing::info!(
+        "Network Route Visualizer v{} starting...",
+        env!("CARGO_PKG_VERSION")
+    );
     tracing::info!("Log level: {}", config.log_level);
 
     // Get hostname
@@ -63,12 +67,14 @@ async fn main() -> anyhow::Result<()> {
 
     // Configure server address
     let addr = SocketAddr::from((
-        config.bind_address.parse::<std::net::IpAddr>()
+        config
+            .bind_address
+            .parse::<std::net::IpAddr>()
             .unwrap_or_else(|_| {
                 tracing::warn!("Invalid bind address, using 127.0.0.1");
                 std::net::IpAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, 1))
             }),
-        config.port
+        config.port,
     ));
     tracing::info!("Server will bind to: {}", addr);
 
@@ -81,21 +87,30 @@ async fn main() -> anyhow::Result<()> {
             tracing::error!("Failed to start discovery announcements: {}", e);
             tracing::warn!("Continuing without discovery announcements");
         } else {
-            tracing::info!("Discovery announcements started (interval: {}s)", config.discovery_interval);
+            tracing::info!(
+                "Discovery announcements started (interval: {}s)",
+                config.discovery_interval
+            );
         }
 
         if let Err(e) = discovery.start_listening(peer_registry.clone()).await {
             tracing::error!("Failed to start discovery listener: {}", e);
             tracing::warn!("Continuing without discovery listener");
         } else {
-            tracing::info!("Discovery listener started on multicast {}:{}",
-                config.multicast_group, config.multicast_port);
+            tracing::info!(
+                "Discovery listener started on multicast {}:{}",
+                config.multicast_group,
+                config.multicast_port
+            );
         }
 
         // Start gossip service for cleanup
         let gossip = GossipService::new(peer_registry.clone());
         gossip.start_cleanup_task().await;
-        tracing::info!("Gossip service started (peer timeout: {}s)", config.peer_timeout);
+        tracing::info!(
+            "Gossip service started (peer timeout: {}s)",
+            config.peer_timeout
+        );
     } else {
         tracing::info!("Node discovery disabled by configuration");
     }
@@ -111,13 +126,21 @@ async fn main() -> anyhow::Result<()> {
     }
 
     // Start bandwidth test server
-    tracing::info!("Starting bandwidth test server on port {}...", config.bandwidth_port);
+    tracing::info!(
+        "Starting bandwidth test server on port {}...",
+        config.bandwidth_port
+    );
     let bandwidth_service = Arc::new(BandwidthService::new(state.clone()));
     bandwidth_service.start_server().await;
     tracing::info!("Bandwidth test server started");
 
     // Update state with bandwidth service
-    let state = Arc::new(state.as_ref().clone().with_bandwidth_service(bandwidth_service.clone()));
+    let state = Arc::new(
+        state
+            .as_ref()
+            .clone()
+            .with_bandwidth_service(bandwidth_service.clone()),
+    );
 
     // Build application router
     let app = api::rest::create_api_router(state.clone())
@@ -149,28 +172,29 @@ async fn main() -> anyhow::Result<()> {
         let _ = std::process::Command::new("open").arg(&url).spawn();
 
         #[cfg(target_os = "windows")]
-        let _ = std::process::Command::new("cmd").args(&["/C", "start", &url]).spawn();
+        let _ = std::process::Command::new("cmd")
+            .args(&["/C", "start", &url])
+            .spawn();
     }
 
     // Start server with proper error handling
     tracing::info!("Starting HTTP server...");
-    let listener = tokio::net::TcpListener::bind(addr)
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to bind to address {}: {}", addr, e);
-            anyhow::anyhow!("Failed to bind to {}: {}. Is another instance running?", addr, e)
-        })?;
+    let listener = tokio::net::TcpListener::bind(addr).await.map_err(|e| {
+        tracing::error!("Failed to bind to address {}: {}", addr, e);
+        anyhow::anyhow!(
+            "Failed to bind to {}: {}. Is another instance running?",
+            addr,
+            e
+        )
+    })?;
 
     tracing::info!("✓ Server started successfully!");
     tracing::info!("Press Ctrl+C to stop");
 
-    axum::serve(listener, app)
-        .await
-        .map_err(|e| {
-            tracing::error!("Server error: {}", e);
-            anyhow::anyhow!("Server error: {}", e)
-        })?;
+    axum::serve(listener, app).await.map_err(|e| {
+        tracing::error!("Server error: {}", e);
+        anyhow::anyhow!("Server error: {}", e)
+    })?;
 
     Ok(())
 }
-

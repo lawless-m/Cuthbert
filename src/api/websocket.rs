@@ -23,19 +23,11 @@ pub enum ClientMessage {
         destination: String,
     },
     #[serde(rename = "subscribe")]
-    Subscribe {
-        topics: Vec<String>,
-    },
+    Subscribe { topics: Vec<String> },
     #[serde(rename = "get_remote_routing_table")]
-    GetRemoteRoutingTable {
-        request_id: String,
-        node_id: String,
-    },
+    GetRemoteRoutingTable { request_id: String, node_id: String },
     #[serde(rename = "start_bandwidth_test")]
-    StartBandwidthTest {
-        test_id: String,
-        node_id: String,
-    },
+    StartBandwidthTest { test_id: String, node_id: String },
 }
 
 // WebSocket message types from server to client
@@ -43,9 +35,7 @@ pub enum ClientMessage {
 #[serde(tag = "type")]
 pub enum ServerMessage {
     #[serde(rename = "latency_update")]
-    LatencyUpdate {
-        connections: Vec<Connection>,
-    },
+    LatencyUpdate { connections: Vec<Connection> },
     #[serde(rename = "error")]
     Error {
         request_id: Option<String>,
@@ -120,7 +110,10 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
 
 async fn handle_client_message(msg: ClientMessage, state: &Arc<AppState>) {
     match msg {
-        ClientMessage::TraceRoute { request_id, destination } => {
+        ClientMessage::TraceRoute {
+            request_id,
+            destination,
+        } => {
             // Handle trace route request
             tracing::info!("Trace route request: {} to {}", request_id, destination);
             // Implementation will send result back via broadcast
@@ -128,7 +121,10 @@ async fn handle_client_message(msg: ClientMessage, state: &Arc<AppState>) {
         ClientMessage::Subscribe { topics } => {
             tracing::info!("Client subscribed to topics: {:?}", topics);
         }
-        ClientMessage::GetRemoteRoutingTable { request_id, node_id } => {
+        ClientMessage::GetRemoteRoutingTable {
+            request_id,
+            node_id,
+        } => {
             tracing::info!("Get remote routing table: {} for {}", request_id, node_id);
         }
         ClientMessage::StartBandwidthTest { test_id, node_id } => {
@@ -145,7 +141,10 @@ async fn handle_client_message(msg: ClientMessage, state: &Arc<AppState>) {
 
                         // Run bandwidth test in background
                         tokio::spawn(async move {
-                            match bandwidth_service.run_bandwidth_test(test_id_clone.clone(), target_addr).await {
+                            match bandwidth_service
+                                .run_bandwidth_test(test_id_clone.clone(), target_addr)
+                                .await
+                            {
                                 Ok(result) => {
                                     state_clone.send_update(ServerMessage::BandwidthTestResult {
                                         test_id: result.test_id,
