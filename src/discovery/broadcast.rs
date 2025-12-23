@@ -13,8 +13,8 @@ use super::wireguard;
 
 const MULTICAST_ADDR: Ipv4Addr = Ipv4Addr::new(239, 255, 42, 1);
 const MULTICAST_PORT: u16 = 5678;
-// VPN subnet scan interval: every N announcements (N * 30s = 5 minutes at N=10)
-const VPN_SCAN_INTERVAL: u32 = 10;
+// VPN subnet scan interval: every N announcements (N * 30s = 30 minutes at N=60)
+const VPN_SCAN_INTERVAL: u32 = 60;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "type")]
@@ -63,7 +63,8 @@ impl DiscoveryService {
 
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(30));
-            let mut vpn_scan_counter: u32 = 0;
+            // Start at VPN_SCAN_INTERVAL to trigger first scan on startup
+            let mut vpn_scan_counter: u32 = VPN_SCAN_INTERVAL;
             let vpn_peer_cache: Arc<RwLock<Vec<IpAddr>>> = Arc::new(RwLock::new(Vec::new()));
 
             loop {
