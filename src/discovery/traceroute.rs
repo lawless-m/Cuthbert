@@ -154,7 +154,7 @@ impl TracerouteExecutor {
         Self::parse_macos_traceroute(&stdout, destination)
     }
 
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
     fn parse_linux_traceroute(output: &str, destination: &str) -> Result<TracerouteResult, String> {
         let mut hops = Vec::new();
 
@@ -326,7 +326,7 @@ mod tests {
     use super::*;
 
     #[test]
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
     fn test_parse_linux_traceroute() {
         let output = r#"traceroute to 8.8.8.8 (8.8.8.8), 30 hops max, 60 byte packets
  1  192.168.1.1  1.234 ms  1.456 ms  1.678 ms

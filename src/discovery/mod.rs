@@ -5,6 +5,7 @@ pub mod broadcast;
 pub mod gossip;
 pub mod ping;
 pub mod traceroute;
+pub mod vpn_scan;
 pub mod wireguard;
 
 use serde::{Deserialize, Serialize};
