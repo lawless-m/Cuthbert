@@ -263,7 +263,7 @@ async fn ping_host(address: IpAddr, timeout_ms: u64) -> bool {
     .await
     {
         Ok(Ok(_)) => true,
-        _ => false,
+        Ok(Err(_)) | Err(_) => false,
     }
 }
 
