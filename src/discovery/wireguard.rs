@@ -73,16 +73,10 @@ pub fn get_wireguard_peer_ips() -> Vec<IpAddr> {
 /// Get list of WireGuard interface names on the system
 fn get_wireguard_interface_names() -> Vec<String> {
     // Try `wg show interfaces` first
-    if let Ok(output) = Command::new("wg")
-        .args(["show", "interfaces"])
-        .output()
-    {
+    if let Ok(output) = Command::new("wg").args(["show", "interfaces"]).output() {
         if output.status.success() {
             let stdout = String::from_utf8_lossy(&output.stdout);
-            return stdout
-                .split_whitespace()
-                .map(String::from)
-                .collect();
+            return stdout.split_whitespace().map(String::from).collect();
         }
     }
 

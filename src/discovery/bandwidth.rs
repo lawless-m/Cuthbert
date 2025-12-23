@@ -58,7 +58,10 @@ impl BandwidthService {
                 }
             };
 
-            tracing::info!("Bandwidth test server listening on port {}", BANDWIDTH_TEST_PORT);
+            tracing::info!(
+                "Bandwidth test server listening on port {}",
+                BANDWIDTH_TEST_PORT
+            );
 
             loop {
                 match listener.accept().await {
@@ -161,11 +164,7 @@ impl BandwidthService {
         })
     }
 
-    async fn test_upload(
-        &self,
-        test_id: String,
-        target_addr: SocketAddr,
-    ) -> Result<f64, String> {
+    async fn test_upload(&self, test_id: String, target_addr: SocketAddr) -> Result<f64, String> {
         self.update_progress(test_id.clone(), 10, "upload".to_string(), 0)
             .await;
 
@@ -190,7 +189,8 @@ impl BandwidthService {
             total_bytes += CHUNK_SIZE as u64;
 
             // Update progress
-            let progress = 10 + ((start.elapsed().as_secs() * 40) / BANDWIDTH_TEST_DURATION_SECS) as u8;
+            let progress =
+                10 + ((start.elapsed().as_secs() * 40) / BANDWIDTH_TEST_DURATION_SECS) as u8;
             self.update_progress(test_id.clone(), progress, "upload".to_string(), total_bytes)
                 .await;
         }
@@ -202,11 +202,7 @@ impl BandwidthService {
         Ok(mbps)
     }
 
-    async fn test_download(
-        &self,
-        test_id: String,
-        target_addr: SocketAddr,
-    ) -> Result<f64, String> {
+    async fn test_download(&self, test_id: String, target_addr: SocketAddr) -> Result<f64, String> {
         self.update_progress(test_id.clone(), 50, "download".to_string(), 0)
             .await;
 
@@ -232,9 +228,15 @@ impl BandwidthService {
             }
 
             // Update progress
-            let progress = 50 + ((start.elapsed().as_secs() * 40) / BANDWIDTH_TEST_DURATION_SECS) as u8;
-            self.update_progress(test_id.clone(), progress, "download".to_string(), total_bytes)
-                .await;
+            let progress =
+                50 + ((start.elapsed().as_secs() * 40) / BANDWIDTH_TEST_DURATION_SECS) as u8;
+            self.update_progress(
+                test_id.clone(),
+                progress,
+                "download".to_string(),
+                total_bytes,
+            )
+            .await;
         }
 
         let elapsed = start.elapsed().as_secs_f64();
@@ -255,12 +257,13 @@ impl BandwidthService {
         tests.insert(test_id.clone(), progress_data.clone());
 
         // Send WebSocket update
-        self.state.send_update(ServerMessage::BandwidthTestProgress {
-            test_id,
-            progress_percent: progress,
-            phase,
-            bytes_transferred: bytes,
-        });
+        self.state
+            .send_update(ServerMessage::BandwidthTestProgress {
+                test_id,
+                progress_percent: progress,
+                phase,
+                bytes_transferred: bytes,
+            });
     }
 
     async fn remove_test(&self, test_id: &str) {

@@ -10,10 +10,12 @@ use axum::{
 use std::sync::Arc;
 use tokio::sync::broadcast;
 
-use crate::routes::{parser, lookup::RouteEngine, RoutingTable};
-use crate::discovery::{NodeInfo, PeerRegistry, traceroute::TracerouteExecutor};
-use super::{TraceRouteRequest, TraceRouteResponse, ErrorResponse, TracerouteRequest, TracerouteResult};
 use super::websocket::ServerMessage;
+use super::{
+    ErrorResponse, TraceRouteRequest, TraceRouteResponse, TracerouteRequest, TracerouteResult,
+};
+use crate::discovery::{traceroute::TracerouteExecutor, NodeInfo, PeerRegistry};
+use crate::routes::{lookup::RouteEngine, parser, RoutingTable};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -32,7 +34,10 @@ impl AppState {
         }
     }
 
-    pub fn with_bandwidth_service(mut self, service: Arc<crate::discovery::bandwidth::BandwidthService>) -> Self {
+    pub fn with_bandwidth_service(
+        mut self,
+        service: Arc<crate::discovery::bandwidth::BandwidthService>,
+    ) -> Self {
         self.bandwidth_service = Some(service);
         self
     }
@@ -55,7 +60,10 @@ pub fn create_api_router(state: Arc<AppState>) -> Router {
         .route("/api/traceroute", post(traceroute))
         .route("/api/nodes", get(get_nodes))
         .route("/api/nodes/:node_id", get(get_node))
-        .route("/api/nodes/:node_id/routing-table", get(get_remote_routing_table))
+        .route(
+            "/api/nodes/:node_id/routing-table",
+            get(get_remote_routing_table),
+        )
         .with_state(state)
 }
 
@@ -108,7 +116,10 @@ async fn trace_route(
                         StatusCode::BAD_REQUEST,
                         Json(ErrorResponse {
                             error: "InvalidDestination".to_string(),
-                            message: format!("Could not resolve destination: {}", request.destination),
+                            message: format!(
+                                "Could not resolve destination: {}",
+                                request.destination
+                            ),
                         }),
                     ));
                 }
@@ -171,7 +182,10 @@ async fn traceroute(
                         StatusCode::BAD_REQUEST,
                         Json(ErrorResponse {
                             error: "InvalidDestination".to_string(),
-                            message: format!("Could not resolve destination: {}", request.destination),
+                            message: format!(
+                                "Could not resolve destination: {}",
+                                request.destination
+                            ),
                         }),
                     ));
                 }
