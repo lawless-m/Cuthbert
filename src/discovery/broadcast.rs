@@ -1,9 +1,12 @@
 // UDP multicast broadcast for node discovery
+// Also supports unicast to WireGuard peers (since multicast doesn't traverse WireGuard tunnels)
 
 use serde::{Deserialize, Serialize};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use tokio::net::UdpSocket;
 use std::sync::Arc;
+
+use super::wireguard;
 
 const MULTICAST_ADDR: Ipv4Addr = Ipv4Addr::new(239, 255, 42, 1);
 const MULTICAST_PORT: u16 = 5678;
@@ -81,8 +84,21 @@ impl DiscoveryService {
                 };
 
                 if let Ok(json) = serde_json::to_string(&announce) {
+                    // Send via multicast (works on regular networks)
                     let _ = socket.send_to(json.as_bytes(), multicast_addr).await;
-                    tracing::debug!("Sent discovery announcement");
+                    tracing::debug!("Sent discovery announcement via multicast");
+
+                    // Also send unicast to WireGuard peers (multicast doesn't traverse WG tunnels)
+                    let wg_peer_ips = wireguard::get_wireguard_peer_ips();
+                    if !wg_peer_ips.is_empty() {
+                        tracing::debug!("Sending unicast discovery to {} WireGuard peers", wg_peer_ips.len());
+                        for peer_ip in wg_peer_ips {
+                            let peer_addr = SocketAddr::new(peer_ip, MULTICAST_PORT);
+                            if let Err(e) = socket.send_to(json.as_bytes(), peer_addr).await {
+                                tracing::trace!("Failed to send to WireGuard peer {}: {}", peer_addr, e);
+                            }
+                        }
+                    }
                 }
             }
         });
