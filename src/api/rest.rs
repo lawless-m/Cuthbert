@@ -59,6 +59,7 @@ pub fn create_api_router(state: Arc<AppState>) -> Router {
         .route("/api/trace-route", post(trace_route))
         .route("/api/traceroute", post(traceroute))
         .route("/api/nodes", get(get_nodes))
+        .route("/api/nodes/manual", post(add_manual_peer))
         .route("/api/nodes/:node_id", get(get_node))
         .route(
             "/api/nodes/:node_id/routing-table",
@@ -253,4 +254,73 @@ async fn get_remote_routing_table(
             message: "Remote routing table fetching not yet implemented".to_string(),
         }),
     ))
+}
+
+#[derive(serde::Deserialize)]
+struct AddManualPeerRequest {
+    hostname: String,
+    addresses: Vec<String>,
+    port: Option<u16>,
+}
+
+#[derive(serde::Serialize)]
+struct AddManualPeerResponse {
+    success: bool,
+    node_id: String,
+    message: String,
+}
+
+async fn add_manual_peer(
+    State(state): State<Arc<AppState>>,
+    Json(request): Json<AddManualPeerRequest>,
+) -> Result<Json<AddManualPeerResponse>, (StatusCode, Json<ErrorResponse>)> {
+    use std::net::IpAddr;
+    use uuid::Uuid;
+
+    // Parse addresses
+    let mut parsed_addresses = Vec::new();
+    for addr_str in &request.addresses {
+        match addr_str.parse::<IpAddr>() {
+            Ok(ip) => parsed_addresses.push(ip),
+            Err(_) => {
+                return Err((
+                    StatusCode::BAD_REQUEST,
+                    Json(ErrorResponse {
+                        error: "InvalidAddress".to_string(),
+                        message: format!("Invalid IP address: {}", addr_str),
+                    }),
+                ));
+            }
+        }
+    }
+
+    if parsed_addresses.is_empty() {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ErrorResponse {
+                error: "NoAddresses".to_string(),
+                message: "At least one IP address is required".to_string(),
+            }),
+        ));
+    }
+
+    let node_id = Uuid::new_v4().to_string();
+    let node = NodeInfo {
+        id: node_id.clone(),
+        hostname: request.hostname.clone(),
+        addresses: parsed_addresses,
+        port: request.port.unwrap_or(8080),
+        status: crate::discovery::NodeStatus::Online,
+        last_seen: chrono::Utc::now().to_rfc3339(),
+        discovered_via: "manual".to_string(),
+    };
+
+    state.peer_registry.add_node(node).await;
+    tracing::info!("Manually added peer: {} ({})", request.hostname, node_id);
+
+    Ok(Json(AddManualPeerResponse {
+        success: true,
+        node_id,
+        message: format!("Added peer {} with {} address(es)", request.hostname, request.addresses.len()),
+    }))
 }

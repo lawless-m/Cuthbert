@@ -52,9 +52,6 @@ impl DiscoveryService {
         &self,
         peer_registry: Arc<super::PeerRegistry>,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let socket = UdpSocket::bind("0.0.0.0:0").await?;
-        socket.set_broadcast(true)?;
-
         let multicast_addr = SocketAddr::new(IpAddr::V4(MULTICAST_ADDR), MULTICAST_PORT);
 
         let node_id = self.node_id.clone();
@@ -72,6 +69,7 @@ impl DiscoveryService {
 
                 // Get local IP addresses
                 let addresses = get_local_addresses();
+                let interface_ips = get_local_interface_addresses();
 
                 // Get known peers
                 let known_peers: Vec<String> = peer_registry
@@ -92,25 +90,51 @@ impl DiscoveryService {
                 };
 
                 if let Ok(json) = serde_json::to_string(&announce) {
-                    // Send via multicast (works on regular networks)
-                    let _ = socket.send_to(json.as_bytes(), multicast_addr).await;
-                    tracing::debug!("Sent discovery announcement via multicast");
+                    // Send multicast on each interface (multicast doesn't always work across all interfaces from one socket)
+                    for iface_ip in &interface_ips {
+                        if let Ok(socket) = UdpSocket::bind(SocketAddr::new(IpAddr::V4(*iface_ip), 0)).await {
+                            let _ = socket.set_multicast_loop_v4(false);
+                            if let Err(e) = socket.send_to(json.as_bytes(), multicast_addr).await {
+                                tracing::debug!("Failed to send multicast via {}: {}", iface_ip, e);
+                            } else {
+                                tracing::debug!("Sent discovery announcement via {}", iface_ip);
+                            }
+                        }
+                    }
 
-                    // Also send unicast to WireGuard peers (multicast doesn't traverse WG tunnels)
-                    let wg_peer_ips = wireguard::get_wireguard_peer_ips();
-                    if !wg_peer_ips.is_empty() {
-                        tracing::debug!(
-                            "Sending unicast discovery to {} WireGuard peers",
-                            wg_peer_ips.len()
-                        );
-                        for peer_ip in wg_peer_ips {
-                            let peer_addr = SocketAddr::new(peer_ip, MULTICAST_PORT);
-                            if let Err(e) = socket.send_to(json.as_bytes(), peer_addr).await {
-                                tracing::trace!(
-                                    "Failed to send to WireGuard peer {}: {}",
-                                    peer_addr,
-                                    e
-                                );
+                    // Create a socket for unicast sends to WireGuard/VPN peers
+                    if let Ok(unicast_socket) = UdpSocket::bind("0.0.0.0:0").await {
+                        // Send unicast to WireGuard peers (multicast doesn't traverse WG tunnels)
+                        let wg_peer_ips = wireguard::get_wireguard_peer_ips();
+                        if !wg_peer_ips.is_empty() {
+                            tracing::debug!(
+                                "Sending unicast discovery to {} WireGuard peers",
+                                wg_peer_ips.len()
+                            );
+                            for peer_ip in wg_peer_ips {
+                                let peer_addr = SocketAddr::new(peer_ip, MULTICAST_PORT);
+                                if let Err(e) = unicast_socket.send_to(json.as_bytes(), peer_addr).await {
+                                    tracing::trace!(
+                                        "Failed to send to WireGuard peer {}: {}",
+                                        peer_addr,
+                                        e
+                                    );
+                                }
+                            }
+                        }
+
+                        // Send unicast to cached VPN peers
+                        let vpn_peers = vpn_peer_cache.read().await;
+                        if !vpn_peers.is_empty() {
+                            tracing::debug!(
+                                "Sending unicast discovery to {} VPN peers",
+                                vpn_peers.len()
+                            );
+                            for &peer_ip in vpn_peers.iter() {
+                                let peer_addr = SocketAddr::new(peer_ip, MULTICAST_PORT);
+                                if let Err(e) = unicast_socket.send_to(json.as_bytes(), peer_addr).await {
+                                    tracing::trace!("Failed to send to VPN peer {}: {}", peer_addr, e);
+                                }
                             }
                         }
                     }
@@ -130,21 +154,6 @@ impl DiscoveryService {
                             *cache_guard = peers;
                         });
                     }
-
-                    // Send unicast to cached VPN peers
-                    let vpn_peers = vpn_peer_cache.read().await;
-                    if !vpn_peers.is_empty() {
-                        tracing::debug!(
-                            "Sending unicast discovery to {} VPN peers",
-                            vpn_peers.len()
-                        );
-                        for &peer_ip in vpn_peers.iter() {
-                            let peer_addr = SocketAddr::new(peer_ip, MULTICAST_PORT);
-                            if let Err(e) = socket.send_to(json.as_bytes(), peer_addr).await {
-                                tracing::trace!("Failed to send to VPN peer {}: {}", peer_addr, e);
-                            }
-                        }
-                    }
                 }
             }
         });
@@ -162,8 +171,14 @@ impl DiscoveryService {
         ))
         .await?;
 
-        // Join multicast group
-        socket.join_multicast_v4(MULTICAST_ADDR, Ipv4Addr::UNSPECIFIED)?;
+        // Join multicast group on all available IPv4 interfaces
+        for iface_ip in get_local_interface_addresses() {
+            if let Err(e) = socket.join_multicast_v4(MULTICAST_ADDR, iface_ip) {
+                tracing::warn!("Failed to join multicast on {}: {}", iface_ip, e);
+            } else {
+                tracing::info!("Joined multicast group {} on interface {}", MULTICAST_ADDR, iface_ip);
+            }
+        }
 
         let local_node_id = peer_registry.local_node_id().to_string();
 
@@ -222,23 +237,53 @@ impl DiscoveryService {
 }
 
 fn get_local_addresses() -> Vec<IpAddr> {
-    use std::net::UdpSocket as StdUdpSocket;
-
-    // Try to get local IP by connecting to a public address
     let mut addresses = Vec::new();
 
-    if let Ok(socket) = StdUdpSocket::bind("0.0.0.0:0") {
-        if socket.connect("8.8.8.8:80").is_ok() {
-            if let Ok(addr) = socket.local_addr() {
-                addresses.push(addr.ip());
-            }
-        }
+    for ip in get_local_interface_addresses() {
+        addresses.push(IpAddr::V4(ip));
     }
 
-    // Fallback to localhost if we couldn't determine the real IP
+    // Fallback to localhost if we couldn't determine any IPs
     if addresses.is_empty() {
         addresses.push(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)));
     }
 
     addresses
+}
+
+/// Get all local IPv4 interface addresses by probing known network ranges
+fn get_local_interface_addresses() -> Vec<Ipv4Addr> {
+    use std::net::UdpSocket as StdUdpSocket;
+    use std::collections::HashSet;
+
+    let mut addresses = HashSet::new();
+
+    // Probe various destinations to discover local interface IPs
+    // Each destination will use a different interface based on routing
+    let probe_targets = [
+        "8.8.8.8:80",        // Public internet (default route)
+        "10.0.0.1:80",       // 10.x.x.x private range
+        "10.0.1.1:80",       // Another 10.x subnet
+        "10.99.0.1:80",      // WireGuard range
+        "192.168.0.1:80",    // 192.168.x.x private range
+        "192.168.1.1:80",    // Common home network
+        "192.168.102.1:80",  // VPN range
+        "172.16.0.1:80",     // 172.16.x.x private range
+    ];
+
+    for target in &probe_targets {
+        if let Ok(socket) = StdUdpSocket::bind("0.0.0.0:0") {
+            if socket.connect(*target).is_ok() {
+                if let Ok(addr) = socket.local_addr() {
+                    if let IpAddr::V4(ipv4) = addr.ip() {
+                        if !ipv4.is_loopback() {
+                            addresses.insert(ipv4);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    addresses.into_iter().collect()
 }
